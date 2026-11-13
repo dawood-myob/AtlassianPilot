@@ -1,0 +1,44 @@
+<Project>
+  <UsingTask TaskName="GeneratePilotIcon" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+	<ParameterGroup><OutputPath ParameterType="System.String" Required="true"/></ParameterGroup>
+	<Task>
+	  <Using Namespace="System"/><Using Namespace="System.IO"/>
+	  <Code Type="Fragment" Language="cs"><![CDATA[
+		const int size = 64;
+		Directory.CreateDirectory(Path.GetDirectoryName(OutputPath));
+		using (var writer = new BinaryWriter(File.Create(OutputPath)))
+		{
+			writer.Write((ushort)0); writer.Write((ushort)1); writer.Write((ushort)1);
+			writer.Write((byte)size); writer.Write((byte)size); writer.Write((byte)0); writer.Write((byte)0);
+			writer.Write((ushort)1); writer.Write((ushort)32);
+			writer.Write(40 + size * size * 4 + size * size / 8); writer.Write(22);
+			writer.Write(40); writer.Write(size); writer.Write(size * 2);
+			writer.Write((ushort)1); writer.Write((ushort)32);
+			writer.Write(0); writer.Write(size * size * 4); writer.Write(0); writer.Write(0); writer.Write(0); writer.Write(0);
+			for (int y = size - 1; y >= 0; y--)
+			for (int x = 0; x < size; x++)
+			{
+				double px = (x + 0.5) * 96 / size, py = (y + 0.5) * 96 / size;
+				byte r = 16, g = 27, b = 53, a = 255;
+				double cx = Math.Max(16, Math.Min(80, px)), cy = Math.Max(16, Math.Min(80, py));
+				if ((px-cx)*(px-cx)+(py-cy)*(py-cy) > 256) a = 0;
+				double distance = Math.Sqrt((px-48)*(px-48)+(py-48)*(py-48));
+				if (Math.Abs(distance-32) <= 1.5) { r=99; g=102; b=241; }
+				double[] xs = {64,55,28,41}, ys = {28,55,68,41};
+				bool inside = false;
+				for (int i = 0, j = 3; i < 4; j = i++)
+					if ((ys[i] > py) != (ys[j] > py) && px < (xs[j]-xs[i])*(py-ys[i])/(ys[j]-ys[i])+xs[i]) inside = !inside;
+				if (inside) { r=34; g=211; b=238; if (px+py < 96) { r=165; g=180; b=252; } }
+				if (Math.Abs(px-76)/11 + Math.Abs(py-20)/11 <= 1) { r=255; g=255; b=255; }
+				writer.Write(b); writer.Write(g); writer.Write(r); writer.Write(a);
+			}
+			writer.Write(new byte[size * size / 8]);
+		}
+		return true;
+	  ]]></Code>
+	</Task>
+  </UsingTask>
+  <Target Name="CreatePilotIcon" BeforeTargets="CoreCompile" Condition="!Exists('$(ApplicationIcon)')">
+	<GeneratePilotIcon OutputPath="$(ApplicationIcon)"/>
+  </Target>
+</Project>
