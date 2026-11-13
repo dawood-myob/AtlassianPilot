@@ -14,7 +14,7 @@ public sealed class ShellViewModelTests : IDisposable
     [Fact]
     public async Task StartupDoesNotInventConnectionStatus()
     {
-        var viewModel = new ShellViewModel(Store);
+        var viewModel = CreateViewModel();
         await viewModel.InitializeAsync();
         Assert.Equal("Not configured", viewModel.JiraState);
         Assert.Equal("Not configured", viewModel.ConfluenceState);
@@ -26,7 +26,7 @@ public sealed class ShellViewModelTests : IDisposable
     [Fact]
     public async Task SavingClearsTokenInputAndNeverReportsConnected()
     {
-        var viewModel = new ShellViewModel(Store);
+        var viewModel = CreateViewModel();
         await viewModel.InitializeAsync();
         var cleared = false;
         viewModel.ClearCredentialInput += () => cleared = true;
@@ -45,7 +45,7 @@ public sealed class ShellViewModelTests : IDisposable
     [Fact]
     public async Task InvalidSettingsRemainEditableAndDoNotShowSuccess()
     {
-        var viewModel = new ShellViewModel(Store);
+        var viewModel = CreateViewModel();
         await viewModel.InitializeAsync();
         viewModel.BaseUrl = "http://invalid";
         var exception = await Assert.ThrowsAsync<ArgumentException>(() => viewModel.SaveAsync("not-saved"));
@@ -59,7 +59,7 @@ public sealed class ShellViewModelTests : IDisposable
     [Fact]
     public async Task UnsavedSettingsBlockNavigation()
     {
-        var viewModel = new ShellViewModel(Store);
+        var viewModel = CreateViewModel();
         await viewModel.InitializeAsync();
         viewModel.NavigateCommand.Execute("Integrations & Settings");
         viewModel.Email = "person@example.com";
@@ -71,7 +71,7 @@ public sealed class ShellViewModelTests : IDisposable
     [Fact]
     public async Task CredentialInputAloneIsAnUnsavedChange()
     {
-        var viewModel = new ShellViewModel(Store);
+        var viewModel = CreateViewModel();
         await viewModel.InitializeAsync();
         viewModel.CredentialEdited();
         Assert.True(viewModel.HasUnsavedChanges);
@@ -80,7 +80,7 @@ public sealed class ShellViewModelTests : IDisposable
     [Fact]
     public async Task HelpShowsPersonalUseAttributionAndReturnsToDashboard()
     {
-        var viewModel = new ShellViewModel(Store);
+        var viewModel = CreateViewModel();
         await viewModel.InitializeAsync();
         viewModel.NavigateCommand.Execute("Help & About");
         Assert.True(viewModel.IsHelp);
@@ -92,6 +92,51 @@ public sealed class ShellViewModelTests : IDisposable
         Assert.False(viewModel.IsHelp);
         Assert.True(viewModel.IsDashboard);
     }
+
+    [Fact]
+    public async Task SelectingConfluenceLoadsItsOwnSavedFieldsWithoutAnotherClick()
+    {
+        await Store.InitializeAsync();
+        await Store.SaveAsync(new(IntegrationKind.Confluence, "https://knowledge.atlassian.net/wiki", "person@example.com", "SPACE"), "test-confluence-token");
+        var viewModel = CreateViewModel();
+        await viewModel.InitializeAsync();
+        await viewModel.ChangeIntegrationAsync(IntegrationKind.Confluence);
+        Assert.Equal(IntegrationKind.Confluence, viewModel.SelectedIntegration);
+        Assert.Equal(viewModel.SelectedIntegration, viewModel.RequestedIntegration);
+        Assert.Equal("https://knowledge.atlassian.net/wiki", viewModel.BaseUrl);
+        Assert.Equal("SPACE", viewModel.DefaultScope);
+        Assert.Equal("Default space key", viewModel.ScopeLabel);
+        Assert.True(viewModel.HasCredential);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SwitchingUnsavedFormRequiresConfirmation(bool confirm)
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.InitializeAsync();
+        viewModel.Email = "unsaved@example.com";
+        viewModel.ConfirmDiscardChanges += () => confirm;
+        await viewModel.ChangeIntegrationAsync(IntegrationKind.Confluence);
+        Assert.Equal(confirm ? IntegrationKind.Confluence : IntegrationKind.Jira, viewModel.SelectedIntegration);
+        Assert.Equal(confirm ? "" : "unsaved@example.com", viewModel.Email);
+        Assert.Equal(!confirm, viewModel.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public async Task ConnectionTestDoesNotSendUnsavedSettings()
+    {
+        var fake = new FakeAtlassianConnection();
+        var viewModel = new ShellViewModel(Store, fake, new FakeCopilotConnection());
+        await viewModel.InitializeAsync();
+        viewModel.CredentialEdited();
+        viewModel.TestConnectionCommand.Execute(null);
+        Assert.Equal(0, fake.Calls);
+        Assert.Contains("Save", viewModel.Notification);
+    }
+
+    private ShellViewModel CreateViewModel() => new(Store, new FakeAtlassianConnection(), new FakeCopilotConnection());
 
     public void Dispose()
     {

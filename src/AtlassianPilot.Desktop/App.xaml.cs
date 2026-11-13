@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Net.Http;
 using System.Windows;
 using AtlassianPilot.Core;
 using AtlassianPilot.Desktop.ViewModels;
@@ -24,6 +25,14 @@ public partial class App : Application
             collection.AddSingleton(provider => new SqliteSettingsStore(Path.Combine(directory, "workspace.db"), provider.GetRequiredService<ISecretProtector>()));
             collection.AddSingleton<ISettingsStore>(provider => provider.GetRequiredService<SqliteSettingsStore>());
             collection.AddSingleton<ICredentialStore>(provider => provider.GetRequiredService<SqliteSettingsStore>());
+            collection.AddSingleton<ISavedJiraSearchStore>(_ => new SqliteSavedJiraSearchStore(Path.Combine(directory, "workspace.db")));
+            collection.AddSingleton(_ => new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan });
+            collection.AddSingleton<IAtlassianConnectionTester, AtlassianConnectionTester>();
+            collection.AddSingleton<IJiraIssueSearchService, JiraIssueSearchService>();
+            collection.AddSingleton<ICopilotRuntime>(_ => new CopilotRuntime(Path.Combine(directory, "copilot")));
+            collection.AddSingleton<ICopilotConnection, CopilotConnection>();
+            collection.AddSingleton<IJiraAgent, CopilotJiraAgent>();
+            collection.AddSingleton<JiraAgentViewModel>();
             collection.AddSingleton<ShellViewModel>();
             collection.AddSingleton<MainWindow>();
             services = collection.BuildServiceProvider();
@@ -33,6 +42,12 @@ public partial class App : Application
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             window.Show();
             splash.Close();
+        }
+        catch (IntegrationException exception)
+        {
+            MessageBox.Show(exception.Message, "Startup failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            splash.Close();
+            Shutdown(1);
         }
         catch (Exception)
         {
@@ -45,7 +60,15 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        services?.Dispose();
+        if (services is not null)
+        {
+            try { Task.Run(async () => await services.DisposeAsync()).GetAwaiter().GetResult(); }
+            catch (Exception)
+            {
+                MessageBox.Show("The Copilot runtime did not shut down cleanly. No credentials have been displayed or logged.",
+                    "Shutdown warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
         base.OnExit(e);
     }
 }

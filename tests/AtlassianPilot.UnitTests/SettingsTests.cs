@@ -123,6 +123,51 @@ public sealed class SettingsTests : IDisposable
         Assert.Throws<CryptographicException>(() => protector.Unprotect(encrypted));
     }
 
+    [Fact]
+    public async Task SavedSearchesPersistWithoutChangingOtherSettings()
+    {
+        await Store.InitializeAsync();
+        await Store.SaveAsync(Jira, "test-token");
+        await Store.SetThemeAsync("Light");
+        var searches = new SqliteSavedJiraSearchStore(DatabasePath);
+        var saved = new SavedJiraSearch(Guid.NewGuid().ToString("N"), "My search", "Find my open issues");
+        await searches.SaveAsync([saved]);
+        await Store.InitializeAsync();
+        Assert.Equal(saved, Assert.Single(await new SqliteSavedJiraSearchStore(DatabasePath).LoadAsync()));
+        Assert.Equal("Light", await Store.GetThemeAsync());
+        Assert.Equal("test-token", await Store.GetAsync(IntegrationKind.Jira));
+        Assert.Equal(Jira.BaseUrl, (await Store.LoadAsync(IntegrationKind.Jira)).BaseUrl);
+    }
+
+    [Fact]
+    public async Task InvalidSavedSearchesCannotReplaceValidData()
+    {
+        await Store.InitializeAsync();
+        var store = new SqliteSavedJiraSearchStore(DatabasePath);
+        var saved = new SavedJiraSearch(Guid.NewGuid().ToString("N"), "Valid", "Find issues");
+        await store.SaveAsync([saved]);
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync([saved, new(Guid.NewGuid().ToString("N"), "valid", "Another")]));
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync([saved with { Name = " " }]));
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync([saved with { Request = new string('x', 4001) }]));
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync(Enumerable.Range(0, 201).Select(i => new SavedJiraSearch(Guid.NewGuid().ToString("N"), $"Name {i}", "Request")).ToList()));
+        Assert.Equal(saved, Assert.Single(await store.LoadAsync()));
+    }
+
+    [Fact]
+    public async Task MalformedSavedSearchDataFailsWithoutBeingOverwritten()
+    {
+        await Store.InitializeAsync();
+        await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = DatabasePath, Pooling = false }.ToString());
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO preferences (key, value) VALUES ('jira_saved_searches', 'not json')";
+        await command.ExecuteNonQueryAsync();
+        var error = await Assert.ThrowsAsync<IntegrationException>(() => new SqliteSavedJiraSearchStore(DatabasePath).LoadAsync());
+        Assert.Contains("have not been changed", error.Message);
+        command.CommandText = "SELECT value FROM preferences WHERE key='jira_saved_searches'";
+        Assert.Equal("not json", await command.ExecuteScalarAsync());
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
