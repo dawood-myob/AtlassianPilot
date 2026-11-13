@@ -28,7 +28,10 @@ public partial class App : Application
             collection.AddSingleton<ISavedJiraSearchStore>(_ => new SqliteSavedJiraSearchStore(Path.Combine(directory, "workspace.db")));
             collection.AddSingleton(_ => new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan });
             collection.AddSingleton<IAtlassianConnectionTester, AtlassianConnectionTester>();
-            collection.AddSingleton<IJiraIssueSearchService, JiraIssueSearchService>();
+            collection.AddSingleton<JiraIssueSearchService>();
+            collection.AddSingleton<IJiraIssueSearchService>(provider => provider.GetRequiredService<JiraIssueSearchService>());
+            collection.AddSingleton<IJiraIssueDetailsService>(provider => provider.GetRequiredService<JiraIssueSearchService>());
+            collection.AddSingleton<IJiraCreateMetadataService>(provider => provider.GetRequiredService<JiraIssueSearchService>());
             collection.AddSingleton<ICopilotRuntime>(_ => new CopilotRuntime(Path.Combine(directory, "copilot")));
             collection.AddSingleton<ICopilotConnection, CopilotConnection>();
             collection.AddSingleton<IJiraAgent, CopilotJiraAgent>();

@@ -116,6 +116,113 @@ public sealed class JiraIssueSearchTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Service(handler).SearchAsync("project = ABC", cancellationToken: cancellation.Token));
     }
 
+    [Fact]
+    public async Task IssueDetailsUseReadOnlyEndpointAndPreserveJiraFields()
+    {
+        using var handler = new Handler(request =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("https://site.atlassian.net/rest/api/3/issue/ABC-123?fields=*all", request.RequestUri!.AbsoluteUri);
+            Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"key\":\"ABC-123\",\"fields\":{\"summary\":\"Real issue\",\"description\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Actual description\"}]}]},\"comment\":{\"total\":5,\"comments\":[]}}}"));
+        });
+        var details = await Service(handler).GetAsync("ABC-123");
+        Assert.Equal("ABC-123", details.Key);
+        Assert.Equal("https://site.atlassian.net/browse/ABC-123", details.Url.AbsoluteUri);
+        Assert.Equal("Real issue", details.Summary);
+        Assert.Equal("Actual description", details.Description);
+        using var fields = JsonDocument.Parse(details.FieldsJson);
+        Assert.Equal("Real issue", fields.RootElement.GetProperty("summary").GetString());
+        Assert.Equal(5, fields.RootElement.GetProperty("comment").GetProperty("total").GetInt32());
+        Assert.Contains("Actual description", details.FieldsJson);
+    }
+
+    [Theory]
+    [InlineData("../ABC-1")]
+    [InlineData("ABC-1?fields=all")]
+    [InlineData("")]
+    public async Task InvalidIssueKeysNeverContactJira(string key)
+    {
+        using var handler = new Handler(_ => throw new InvalidOperationException("Unexpected request"));
+        await Assert.ThrowsAsync<IntegrationException>(() => Service(handler).GetAsync(key));
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(404)]
+    public async Task IssueDetailsFailuresDoNotExposeProviderBody(int status)
+    {
+        using var handler = new Handler(_ => Task.FromResult(Json((HttpStatusCode)status, "{\"error\":\"private-provider-output\"}")));
+        var error = await Assert.ThrowsAsync<IntegrationException>(() => Service(handler).GetAsync("ABC-1"));
+        Assert.DoesNotContain("private-provider-output", error.Message);
+    }
+
+    [Fact]
+    public async Task MalformedIssueDetailsAreRejected()
+    {
+        using var handler = new Handler(_ => Task.FromResult(Json(HttpStatusCode.OK, "{\"key\":\"ABC-1\"}")));
+        var error = await Assert.ThrowsAsync<IntegrationException>(() => Service(handler).GetAsync("ABC-1"));
+        Assert.Contains("invalid", error.Message);
+    }
+
+    [Fact]
+    public async Task CreateMetadataUsesProjectIssueTypeAndReadOnlyFieldMetadata()
+    {
+        using var handler = new Handler(request =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/issuetypes"))
+                return Task.FromResult(Json(HttpStatusCode.OK, "{\"startAt\":0,\"total\":1,\"issueTypes\":[{\"id\":\"25171\",\"name\":\"Task\"}]}"));
+            Assert.EndsWith("/issuetypes/25171", path);
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"startAt\":0,\"total\":2,\"fields\":[{\"fieldId\":\"summary\",\"name\":\"Summary\",\"required\":true,\"schema\":{\"type\":\"string\"}},{\"fieldId\":\"customfield_33482\",\"name\":\"Functional Area\",\"required\":false,\"hasDefaultValue\":true,\"schema\":{\"type\":\"option\"}}]}"));
+        });
+        var metadata = await Service(handler).GetAsync("WOR", "task");
+        Assert.Equal("25171", metadata.IssueTypeId);
+        Assert.Equal(2, handler.Calls);
+        Assert.Equal(new JiraCreateField("summary", "Summary", "string", true, false), metadata.Fields[0]);
+        Assert.Equal(new JiraCreateField("customfield_33482", "Functional Area", "option", false, true), metadata.Fields[1]);
+    }
+
+    [Fact]
+    public async Task CreateMetadataPaginatesAndRejectsAnIncompletePage()
+    {
+        using var handler = new Handler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/issuetypes"))
+                return Task.FromResult(Json(HttpStatusCode.OK, "{\"startAt\":0,\"total\":1,\"issueTypes\":[{\"id\":\"1\",\"name\":\"Task\"}]}"));
+            if (request.RequestUri.Query.Contains("startAt=0"))
+            {
+                var fields = Enumerable.Range(0, 50).Select(i => new { fieldId = $"customfield_{i}", name = $"Field {i}", required = false });
+                return Task.FromResult(Json(HttpStatusCode.OK, JsonSerializer.Serialize(new { startAt = 0, total = 51, fields })));
+            }
+            Assert.Contains("startAt=50", request.RequestUri.Query);
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"startAt\":50,\"total\":51,\"fields\":[{\"fieldId\":\"summary\",\"name\":\"Summary\",\"required\":true}]}"));
+        });
+        var result = await Service(handler).GetAsync("WOR", "Task");
+        Assert.Equal(51, result.Fields.Count);
+        Assert.True(result.Fields[^1].Required);
+        Assert.Equal(3, handler.Calls);
+        using var malformed = new Handler(request => Task.FromResult(Json(HttpStatusCode.OK, request.RequestUri!.AbsolutePath.EndsWith("/issuetypes")
+            ? "{\"startAt\":0,\"total\":1,\"issueTypes\":[{\"id\":\"1\",\"name\":\"Task\"}]}"
+            : "{\"startAt\":0,\"total\":1,\"fields\":[]}")));
+        var error = await Assert.ThrowsAsync<IntegrationException>(() => Service(malformed).GetAsync("WOR", "Task"));
+        Assert.Contains("invalid", error.Message);
+    }
+
+    [Fact]
+    public async Task InvalidMetadataOrUnknownIssueTypeFailsWithoutInventingFields()
+    {
+        using var handler = new Handler(_ => Task.FromResult(Json(HttpStatusCode.OK, "{\"startAt\":0,\"total\":1,\"issueTypes\":[{\"id\":\"1\",\"name\":\"Task\"}]}")));
+        await Assert.ThrowsAsync<IntegrationException>(() => Service(handler).GetAsync("WOR", "Story"));
+        using var invalid = new Handler(_ => throw new InvalidOperationException("Unexpected request"));
+        await Assert.ThrowsAsync<IntegrationException>(() => Service(invalid).GetAsync("../WOR", "Task"));
+        Assert.Equal(0, invalid.Calls);
+    }
+
     private int handlerCalls;
 
     private static JiraIssueSearchService Service(Handler handler)

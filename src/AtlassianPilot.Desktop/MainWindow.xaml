@@ -85,7 +85,7 @@
                     <StackPanel Visibility="{Binding DataContext.IsJiraAgent, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}" DataContext="{Binding JiraAgent}">
                         <Border Style="{StaticResource Card}"><StackPanel>
                             <TextBlock Text="Jira Agent" FontSize="28" FontWeight="SemiBold"/>
-                            <TextBlock Text="Ask for Jira issues in natural language. Searches are read-only; your request and issue data are sent to GitHub Copilot online. The visible conversation is temporary; the Copilot runtime may retain local session data." Style="{StaticResource Muted}" Margin="0,10,0,16"/>
+                            <TextBlock Text="Ask for Jira searches, issue details or an issue draft. Jira access is read-only; drafts cannot yet be created in Jira. Requests and search results are sent to GitHub Copilot online; full issue fields remain local. The visible conversation is temporary; the Copilot runtime may retain local session data." Style="{StaticResource Muted}" Margin="0,10,0,16"/>
                             <ItemsControl ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate><Border Style="{StaticResource Card}" Margin="0,0,0,8" Padding="12"><StackPanel><TextBlock Text="{Binding Speaker}" Foreground="{DynamicResource CyanBrush}" FontWeight="SemiBold"/><TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,6,0,0"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                             <TextBlock Text="Saved searches and examples" Margin="0,8,0,0"/>
                             <TextBlock Text="Choose an example or a saved search, then select Use selected. Replace any [placeholders] and review the request before searching. Specify a project when needed; the default project does not limit searches." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,8"/>
@@ -101,7 +101,24 @@
                         </StackPanel></Border>
                         <Border Style="{StaticResource Card}"><StackPanel>
                             <TextBlock Text="Jira results" FontSize="20" FontWeight="SemiBold"/>
+                            <StackPanel Visibility="{Binding HasDraft, Converter={StaticResource VisibleWhenTrue}}">
+                                <TextBlock Text="Issue draft (preview only)" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,8"/>
+                                <TextBlock Text="This draft has not been validated against Jira. No issue was created. Issue creation is not available yet." Style="{StaticResource Muted}"/>
+                                <TextBlock Text="{Binding Draft.ProjectKey, StringFormat='Project: {0}'}" Margin="0,8,0,0"/>
+                                <TextBlock Text="{Binding Draft.IssueType, StringFormat='Issue type: {0}'}"/>
+                                <TextBlock Text="{Binding Draft.ParentKey, StringFormat='Parent: {0}', TargetNullValue='Parent: None supplied'}"/>
+                                <TextBlock Text="{Binding Draft.Summary, StringFormat='Summary: {0}'}" TextWrapping="Wrap"/>
+                                <TextBlock Text="Description" FontWeight="SemiBold" Margin="0,8,0,4"/><TextBlock Text="{Binding Draft.Description}" TextWrapping="Wrap"/>
+                            </StackPanel>
                             <TextBlock Text="{Binding Query}" Style="{StaticResource Muted}" Margin="0,8,0,12"/>
+                            <StackPanel Visibility="{Binding HasIssueDetails, Converter={StaticResource VisibleWhenTrue}}">
+                                <Button Content="{Binding IssueDetails.Key}" Tag="{Binding IssueDetails.Url}" Click="OpenIssue" HorizontalAlignment="Left"/>
+                                <TextBlock Text="{Binding IssueDetails.Summary}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,6"/>
+                                <WrapPanel><TextBlock Text="{Binding IssueDetails.Status, StringFormat='Status: {0}'}" Margin="0,0,18,0"/><TextBlock Text="{Binding IssueDetails.Assignee, StringFormat='Assignee: {0}'}" Margin="0,0,18,0"/><TextBlock Text="{Binding IssueDetails.Priority, StringFormat='Priority: {0}'}" Margin="0,0,18,0"/><TextBlock Text="{Binding IssueDetails.IssueType, StringFormat='Type: {0}'}"/></WrapPanel>
+                                <TextBlock Text="Description" FontWeight="SemiBold" Margin="0,12,0,4"/><TextBlock Text="{Binding IssueDetails.Description}" TextWrapping="Wrap"/>
+                                <TextBlock Text="Raw fields returned by Jira (JSON). Nested comments and other collections may be paginated; issue history is not included. Full fields stay local; the request and issue key are sent to Copilot." Style="{StaticResource Muted}" Margin="0,12,0,8"/>
+                                <TextBox Text="{Binding IssueDetails.FieldsJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="450" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Jira issue details"/>
+                            </StackPanel>
                             <ItemsControl ItemsSource="{Binding Issues}"><ItemsControl.ItemTemplate><DataTemplate><Border Style="{StaticResource Card}" Margin="0,0,0,8" Padding="12"><StackPanel><Button Content="{Binding Key}" Tag="{Binding Url}" Click="OpenIssue" HorizontalAlignment="Left"/><TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,6,0,6"/><WrapPanel><TextBlock Text="{Binding Status, StringFormat='Status: {0}'}" Margin="0,0,18,0"/><TextBlock Text="{Binding Assignee, StringFormat='Assignee: {0}'}" Margin="0,0,18,0"/><TextBlock Text="{Binding Priority, StringFormat='Priority: {0}'}" Margin="0,0,18,0"/><TextBlock Text="{Binding IssueType, StringFormat='Type: {0}'}"/></WrapPanel></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                             <Button Content="Load more" Command="{Binding LoadMoreCommand}" IsEnabled="{Binding CanLoadMore}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
                         </StackPanel></Border>

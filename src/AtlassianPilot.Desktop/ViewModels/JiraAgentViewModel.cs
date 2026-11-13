@@ -14,6 +14,8 @@ public sealed class JiraAgentViewModel : ObservableObject
     private readonly ISavedJiraSearchStore savedSearchStore;
     private readonly List<SavedJiraSearch> savedSearches = [];
     private JiraSearchChoice? selectedSearch;
+    private JiraIssueDetails? issueDetails;
+    private JiraIssueDraft? draft;
     private string searchName = "";
     private string prompt = "";
     private string status = "Ready to search. Jira searches are read-only.";
@@ -41,13 +43,17 @@ public sealed class JiraAgentViewModel : ObservableObject
     public ObservableCollection<JiraChatMessage> Messages { get; } = [];
     public ObservableCollection<JiraIssueSummary> Issues { get; } = [];
     public ObservableCollection<JiraSearchChoice> Searches { get; } = [];
+    public JiraIssueDetails? IssueDetails { get => issueDetails; private set { Set(ref issueDetails, value); Changed(nameof(HasIssueDetails)); Changed(nameof(Query)); } }
+    public bool HasIssueDetails => IssueDetails is not null;
+    public JiraIssueDraft? Draft { get => draft; private set { Set(ref draft, value); Changed(nameof(HasDraft)); } }
+    public bool HasDraft => Draft is not null;
     public JiraSearchChoice? SelectedSearch { get => selectedSearch; set { Set(ref selectedSearch, value); Changed(nameof(HasSelectedSearch)); Changed(nameof(HasSelectedSavedSearch)); } }
     public bool HasSelectedSearch => SelectedSearch is not null && CanEdit;
     public bool HasSelectedSavedSearch => SelectedSearch is { IsExample: false } && CanEdit;
     public string SearchName { get => searchName; set => Set(ref searchName, value); }
     public string Prompt { get => prompt; set => Set(ref prompt, value); }
     public string Status { get => status; private set => Set(ref status, value); }
-    public string Query => jql is null ? "No search has been run." : $"JQL: {jql}";
+    public string Query => jql is null ? IssueDetails is null ? "No search has been run." : "Issue details" : $"JQL: {jql}";
     public bool Busy { get => busy; private set { Set(ref busy, value); Changed(nameof(CanEdit)); Changed(nameof(CanLoadMore)); Changed(nameof(CanCancel)); Changed(nameof(HasSelectedSearch)); Changed(nameof(HasSelectedSavedSearch)); } }
     public bool CanEdit => !Busy;
     public bool CanCancel => Busy && operation is not null;
@@ -171,6 +177,8 @@ public sealed class JiraAgentViewModel : ObservableObject
             Messages.Add(new("You", input));
             Prompt = "";
             Issues.Clear();
+            IssueDetails = null;
+            Draft = null;
             SetPage(null, null);
             var currentOperation = operation!;
             var progress = new Progress<JiraAgentProgress>(value => { if (operation == currentOperation && Busy) Status = value.Message; });
@@ -187,7 +195,13 @@ public sealed class JiraAgentViewModel : ObservableObject
             }
             CopilotRequestFinished?.Invoke(true);
             Messages.Add(new("Jira Agent", result.Content));
-            if (result.SearchResult is not null && result.Jql is not null)
+            IssueDetails = result.IssueDetails;
+            Draft = result.Draft;
+            if (result.Draft is not null)
+                Status = "Draft only: no Jira issue was created or validated. Issue creation is not yet available.";
+            else if (result.IssueDetails is not null)
+                Status = "Issue fields retrieved. Some nested collections may be paginated; history is not included.";
+            else if (result.SearchResult is not null && result.Jql is not null)
             {
                 foreach (var issue in result.SearchResult.Issues) Issues.Add(issue);
                 pageSize = result.SearchResult.PageSize;
@@ -196,7 +210,7 @@ public sealed class JiraAgentViewModel : ObservableObject
                     ? "More results are available. Select Load more to retrieve the next page."
                     : "Search complete. Only results returned by Jira are shown.";
             }
-            else Status = "No Jira search was performed.";
+            else Status = "No Jira issue was created or modified.";
         }
         catch (OperationCanceledException) { Status = "Jira request cancelled."; }
         catch (Exception exception) { ReportError(exception); }
@@ -231,6 +245,8 @@ public sealed class JiraAgentViewModel : ObservableObject
             await agent.NewConversationAsync(operation!.Token);
             Messages.Clear();
             Issues.Clear();
+            IssueDetails = null;
+            Draft = null;
             Prompt = "";
             SetPage(null, null);
             Status = "New conversation started.";

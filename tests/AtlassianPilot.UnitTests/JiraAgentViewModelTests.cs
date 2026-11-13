@@ -44,6 +44,39 @@ public sealed class JiraAgentViewModelTests
     }
 
     [Fact]
+    public async Task DraftIsDisplayedAsPreviewAndClearedOnNewConversation()
+    {
+        var draft = new JiraIssueDraft("ABC", "Story", "Example", "Requirements", "ABC-123");
+        var agent = new FakeAgent { Reply = new("Draft prepared", null, null, Draft: draft) };
+        var viewModel = new JiraAgentViewModel(agent, new FakeSearch(), new FakeSavedSearchStore()) { Prompt = "Prepare a story" };
+        await viewModel.SendAsync();
+        Assert.Equal(draft, viewModel.Draft);
+        Assert.True(viewModel.HasDraft);
+        Assert.Contains("no Jira issue was created", viewModel.Status);
+        await viewModel.NewConversationAsync();
+        Assert.Null(viewModel.Draft);
+        Assert.False(viewModel.HasDraft);
+    }
+
+    [Fact]
+    public async Task DetailsAreDisplayedAndClearedOnTheNextRequest()
+    {
+        var details = new JiraIssueDetails("ABC-1", new Uri("https://site.atlassian.net/browse/ABC-1"), "{\"summary\":\"Example\"}");
+        var agent = new FakeAgent { Reply = new("Details returned", null, null, details) };
+        var viewModel = new JiraAgentViewModel(agent, new FakeSearch(), new FakeSavedSearchStore()) { Prompt = "Show ABC-1" };
+        await viewModel.SendAsync();
+        Assert.Equal(details, viewModel.IssueDetails);
+        Assert.True(viewModel.HasIssueDetails);
+        Assert.Contains("paginated", viewModel.Status);
+        agent.Error = new IntegrationException("Issue unavailable.");
+        viewModel.Prompt = "Show ABC-2";
+        await viewModel.SendAsync();
+        Assert.Null(viewModel.IssueDetails);
+        Assert.False(viewModel.HasIssueDetails);
+        Assert.Equal("Issue unavailable.", viewModel.Status);
+    }
+
+    [Fact]
     public async Task NewConversationClearsVisibleSession()
     {
         var agent = new FakeAgent { Reply = new("one result", new([Issue("ABC-1")], false, null, null), "project = ABC") };
