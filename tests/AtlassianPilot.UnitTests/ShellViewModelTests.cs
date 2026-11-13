@@ -18,6 +18,7 @@ public sealed class ShellViewModelTests : IDisposable
         await viewModel.InitializeAsync();
         Assert.Equal("Not configured", viewModel.JiraState);
         Assert.Equal("Not configured", viewModel.ConfluenceState);
+        Assert.Equal("GitHub Copilot / Not checked", viewModel.CopilotHeader);
         Assert.True(viewModel.IsDashboard);
         Assert.False(viewModel.HasCredential);
         Assert.False(viewModel.HasUnsavedChanges);
@@ -134,6 +135,55 @@ public sealed class ShellViewModelTests : IDisposable
         viewModel.TestConnectionCommand.Execute(null);
         Assert.Equal(0, fake.Calls);
         Assert.Contains("Save", viewModel.Notification);
+    }
+
+    [Fact]
+    public async Task JiraRequestUpdatesCopilotStatusWithoutInventingFailureCause()
+    {
+        var agent = new StatusAgent();
+        var jira = new JiraAgentViewModel(agent, new UnusedSearch(), new EmptySavedSearchStore());
+        var viewModel = new ShellViewModel(Store, new FakeAtlassianConnection(), new FakeCopilotConnection(), jira);
+        await viewModel.InitializeAsync();
+        var headerChanges = new List<string>();
+        viewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(viewModel.CopilotHeader)) headerChanges.Add(viewModel.CopilotHeader); };
+        jira.Prompt = "Find my issues";
+        await jira.SendAsync();
+        Assert.Equal("GitHub Copilot / Connected (last request)", viewModel.CopilotHeader);
+        Assert.Contains("GitHub Copilot / Checking...", headerChanges);
+        Assert.Contains(viewModel.CopilotHeader, headerChanges);
+        agent.Error = new IntegrationException("Jira search failed.");
+        jira.Prompt = "Find more issues";
+        await jira.SendAsync();
+        Assert.Equal("GitHub Copilot / Status unknown", viewModel.CopilotHeader);
+        Assert.Equal("Jira search failed.", jira.Status);
+        await viewModel.ChangeIntegrationAsync(IntegrationKind.Copilot);
+        viewModel.TestConnectionCommand.Execute(null);
+        Assert.Equal("GitHub Copilot / Not signed in", viewModel.CopilotHeader);
+        viewModel.SignOutCommand.Execute(null);
+        Assert.Equal("GitHub Copilot / Not signed in", viewModel.CopilotHeader);
+    }
+
+    private sealed class StatusAgent : IJiraAgent
+    {
+        public Exception? Error { get; set; }
+        public Task<JiraAgentReply> SendAsync(string prompt, IProgress<JiraAgentProgress>? progress = null, CancellationToken cancellationToken = default)
+        {
+            if (Error is not null) throw Error;
+            return Task.FromResult(new JiraAgentReply("Response", null, null));
+        }
+        public Task NewConversationAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class UnusedSearch : IJiraIssueSearchService
+    {
+        public Task<JiraIssueSearchResult> SearchAsync(string jql, int maxResults = 50, string? nextPageToken = null, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected search");
+    }
+
+    private sealed class EmptySavedSearchStore : ISavedJiraSearchStore
+    {
+        public Task<IReadOnlyList<SavedJiraSearch>> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<SavedJiraSearch>>([]);
+        public Task SaveAsync(IReadOnlyList<SavedJiraSearch> searches, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Unexpected save");
     }
 
     private ShellViewModel CreateViewModel() => new(Store, new FakeAtlassianConnection(), new FakeCopilotConnection());

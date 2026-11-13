@@ -11,7 +11,7 @@ public sealed class ShellViewModel : ObservableObject
     private readonly ICopilotConnection copilot;
     private readonly Dictionary<IntegrationKind, ConnectionResult> connectionResults = [];
     private CancellationTokenSource? operation;
-    private string copilotState = "Not connected";
+    private string copilotState = "Not checked";
     private string connectionDetails = "Connection has not been tested in this session.";
     private DeviceLoginPrompt? loginPrompt;
     private string selectedSection = "Dashboard";
@@ -37,7 +37,12 @@ public sealed class ShellViewModel : ObservableObject
         this.atlassian = atlassian;
         this.copilot = copilot;
         JiraAgent = jiraAgent;
-        if (JiraAgent is not null) JiraAgent.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+        if (JiraAgent is not null)
+        {
+            JiraAgent.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+            JiraAgent.CopilotRequestStarted += () => CopilotState = "Checking...";
+            JiraAgent.CopilotRequestFinished += success => CopilotState = success ? "Connected (last request)" : "Status unknown";
+        }
         NavigateCommand = new RelayCommand(value => Navigate(value as string ?? "Dashboard"));
         SaveCommand = new AsyncCommand(() => SaveAsync(null), ReportError);
         DeleteCredentialCommand = new AsyncCommand(DeleteCredentialAsync, ReportError);
@@ -67,7 +72,7 @@ public sealed class ShellViewModel : ObservableObject
     public event Action<string>? ThemeChanged;
     public event Action? ClearCredentialInput;
     public event Func<bool>? ConfirmDiscardChanges;
-    public string CopilotState { get => copilotState; private set => Set(ref copilotState, value); }
+    public string CopilotState { get => copilotState; private set { Set(ref copilotState, value); Changed(nameof(CopilotHeader)); } }
     public string CopilotHeader => $"GitHub Copilot / {CopilotState}";
     public string ConnectionDetails { get => connectionDetails; private set => Set(ref connectionDetails, value); }
     public string DeviceCode => loginPrompt?.UserCode ?? "";
@@ -279,7 +284,8 @@ public sealed class ShellViewModel : ObservableObject
                 var response = signIn ? await copilot.SignInAsync(progress, operation.Token) : await copilot.TestAsync(operation.Token);
                 result = response.Connection;
                 foreach (var candidate in response.Models) AvailableModels.Add(candidate);
-                CopilotState = result.Success ? $"Connected{(response.Login is null ? "" : $" as {response.Login}")}" : "Not connected";
+                CopilotState = result.Success ? $"Connected{(response.Login is null ? "" : $" as {response.Login}")}" :
+                    result.Failure == ConnectionFailure.Authentication ? "Not signed in" : "Check failed";
             }
             else result = await atlassian.TestAsync(kind, operation.Token);
             connectionResults[kind] = result;
@@ -291,7 +297,7 @@ public sealed class ShellViewModel : ObservableObject
             ReportError(exception);
             connectionResults[kind] = new(false, Notification, ConnectionFailure.Provider);
             ConnectionDetails = Notification;
-            if (kind == IntegrationKind.Copilot) CopilotState = "Not connected";
+            if (kind == IntegrationKind.Copilot) CopilotState = "Status unknown";
         }
         finally
         {
@@ -314,7 +320,7 @@ public sealed class ShellViewModel : ObservableObject
             await copilot.SignOutAsync(timeout.Token);
             AvailableModels.Clear();
             connectionResults.Remove(IntegrationKind.Copilot);
-            CopilotState = "Not connected";
+            CopilotState = "Not signed in";
             Changed(nameof(CopilotHeader));
             ConnectionDetails = "Signed out of this app's Copilot runtime. Atlassian credentials were not changed.";
             Notification = ConnectionDetails;

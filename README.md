@@ -53,12 +53,12 @@ You do not need to know programming or run the developer commands above to confi
 On this development PC, open:
 
 ```text
-C:\Repo\AtlasianFriend\artifacts\win-x64-saved-searches\AtlassianPilot.Desktop.exe
+C:\Repo\AtlasianFriend\artifacts\win-x64-status-fix\AtlassianPilot.Desktop.exe
 ```
 
 You can right-click the executable and use **Show more options > Send to > Desktop (create shortcut)** if your Windows configuration offers that option. Keep the entire published folder together: the executable needs the accompanying files. On another PC, copy that whole folder to a location your workplace permits, then open the executable there.
 
-The initial dashboard shows **Not configured** for Jira/Confluence and **Not connected** for Copilot. This is expected.
+On a fresh installation, the dashboard shows **Not configured** for Jira/Confluence and **Not checked** for Copilot. This is expected.
 
 > **Current limitation:** the Jira Agent search screen requires a successful Copilot sign-in. The device-code request now works in a live test, but you must complete authorization in the browser; see the verification note above. Your already-saved Atlassian settings do not need to be re-entered.
 
@@ -123,11 +123,11 @@ Jira and Confluence credentials are saved separately. You may use the same token
 7. On later app launches, use **Test connection** to check authentication and refresh models. Sign-in/cached credentials are resolved by the official runtime, not by copying this Visual Studio chat.
 8. **Sign out** asks for confirmation and signs out the active account through the runtime. It does not delete Jira or Confluence credentials.
 
-**Known blocker on this PC:** the native runtime's device-code request currently fails before displaying a code. The app reports failure, not a connected status. Check with IT whether the bundled Copilot runtime is permitted to reach GitHub OAuth/Copilot endpoints through the approved VPN/proxy and certificate configuration. Do not disable TLS verification or endpoint security. See [GitHub's network troubleshooting guide](https://docs.github.com/en/copilot/how-tos/troubleshoot-copilot/troubleshoot-network-errors).
+If the native runtime cannot display a device code, check with IT whether it is permitted to reach GitHub OAuth/Copilot endpoints through the approved VPN/proxy and certificate configuration. Do not disable TLS verification or endpoint security. See [GitHub's network troubleshooting guide](https://docs.github.com/en/copilot/how-tos/troubleshoot-copilot/troubleshoot-network-errors).
 
 You need suitable GitHub Copilot access and organization approval. This initial sign-in UI supports a single github.com account, not an Enterprise Cloud custom host/Entra account-selection flow. The SDK account APIs are experimental and isolated behind the runtime adapter. Unsupported authorization steps fail explicitly. If the runtime requests consent to plaintext credential storage, the app refuses and cancels the flow; secure OS credential storage must be available.
 
-No OpenAI key, GitHub personal access token or Atlassian token belongs in AI Configuration. A successful check verifies authentication and the model catalog, not an inference request or agent tools. No user has completed live sign-in during automated validation.
+No OpenAI key, GitHub personal access token or Atlassian token belongs in AI Configuration. A successful check verifies authentication and the model catalog, not an inference request or agent tools. The header starts as **Not checked** after opening the app; a successful Jira Agent response changes it to **Connected (last request)**. A failed or cancelled request changes it to **Status unknown**, because a Jira or network failure does not necessarily mean Copilot signed out. Use **Test connection** in AI Configuration for a fresh authentication and model check.
 
 When enabled, Copilot will receive your instructions and relevant issue/page content to perform its analysis. Obtain any required workplace approval before sending business content. Atlassian authentication tokens will remain in the local integration services, not agent prompts.
 
@@ -162,7 +162,7 @@ To reuse a search, select an example or saved search in **Saved searches and exa
 | An email validation message | Enter the actual Atlassian account email, not a display name. |
 | Token field is empty after saving | Expected: it clears deliberately. Check the stored-credential status instead. |
 | **Configured / untested** | Settings exist locally; no successful API connection has been established yet. |
-| Copilot remains **Not connected** | Use **Sign in with GitHub**. If the native runtime cannot reach GitHub, contact IT about approved runtime network access. No successful sign-in is assumed. |
+| Copilot shows **Not checked** or **Status unknown** | Test the connection in **AI Configuration**. If the test says you are not signed in, use **Sign in with GitHub**. If the runtime cannot reach GitHub, contact IT about approved network access. |
 | Authentication failed (401) | Check email/token, expiry and whether the token needs a scoped-token gateway URL. |
 | Access denied (403) | Check product access, scopes and organization policy with your administrator. |
 | Rate limited (429) | Wait and retry. Long server Retry-After periods are not ignored. |
@@ -175,7 +175,7 @@ To reuse a search, select an example or saved search in **Saved searches and exa
 | Local storage operation fails | Check that your Windows account can write to `%LOCALAPPDATA%\AtlassianPilot`; contact workplace IT if access is restricted. |
 | Credentials fail after moving to another Windows profile/PC | Re-enter tokens on that profile/PC. DPAPI-encrypted tokens are not portable credentials. |
 
-The direct Jira search API and pagination were tested read-only with the saved account. Copilot-assisted natural-language searches still need successful live GitHub authorization and inference on an approved network.
+The direct Jira search API, pagination and Copilot-assisted natural-language searches have been exercised read-only with an authorized account. Each user's Copilot access and network availability still need to be verified.
 
 ## Local data and security
 

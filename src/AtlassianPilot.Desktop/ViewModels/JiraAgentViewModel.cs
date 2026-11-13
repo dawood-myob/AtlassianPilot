@@ -53,6 +53,8 @@ public sealed class JiraAgentViewModel : ObservableObject
     public bool CanCancel => Busy && operation is not null;
     public bool CanLoadMore => !Busy && jql is not null && nextPageToken is not null;
     public event Action? BusyChanged;
+    public event Action? CopilotRequestStarted;
+    public event Action<bool>? CopilotRequestFinished;
 
     public ICommand SendCommand { get; }
     public ICommand NewConversationCommand { get; }
@@ -172,7 +174,18 @@ public sealed class JiraAgentViewModel : ObservableObject
             SetPage(null, null);
             var currentOperation = operation!;
             var progress = new Progress<JiraAgentProgress>(value => { if (operation == currentOperation && Busy) Status = value.Message; });
-            var result = await agent.SendAsync(input, progress, currentOperation.Token);
+            CopilotRequestStarted?.Invoke();
+            JiraAgentReply result;
+            try
+            {
+                result = await agent.SendAsync(input, progress, currentOperation.Token);
+            }
+            catch
+            {
+                CopilotRequestFinished?.Invoke(false);
+                throw;
+            }
+            CopilotRequestFinished?.Invoke(true);
             Messages.Add(new("Jira Agent", result.Content));
             if (result.SearchResult is not null && result.Jql is not null)
             {
