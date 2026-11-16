@@ -1,0 +1,64 @@
+<UserControl x:Class="AtlassianPilot.Desktop.Views.JiraActionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <Border Style="{StaticResource Card}"><StackPanel>
+            <TextBlock Text="Jira issue actions" FontSize="28" FontWeight="SemiBold"/>
+            <TextBlock Text="Update fields, comment, assign, transition, link or clone an issue. Every write is prepared as an exact payload and requires separate approval. Jira applies final permissions and workflow rules." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12"/>
+            <WrapPanel><TextBlock Text="Issue key" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox Text="{Binding IssueKey, UpdateSourceTrigger=PropertyChanged}" Width="180" MaxLength="255" AutomationProperties.Name="Jira action issue key"/><Button Content="Load transitions" Command="{Binding LoadTransitionsCommand}"/><Button Content="Load link types" Command="{Binding LoadLinkTypesCommand}"/><Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"/></WrapPanel>
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,8,0,8" Visibility="{Binding Busy, Converter={StaticResource VisibleWhenTrue}}"/>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Update issue" FontSize="19" FontWeight="SemiBold"/>
+            <TextBlock Text="Leave a field blank to keep it unchanged." Style="{StaticResource Muted}" Margin="0,4,0,6"/>
+            <TextBox Text="{Binding Summary, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Updated Jira summary"/>
+            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="180" AutomationProperties.Name="Updated Jira description"/>
+            <Button Content="Prepare update" Command="{Binding PrepareUpdateCommand}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Add comment" FontSize="19" FontWeight="SemiBold"/>
+            <TextBox Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxHeight="120" AutomationProperties.Name="Jira comment"/>
+            <Button Content="Prepare comment" Command="{Binding PrepareCommentCommand}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Assign issue" FontSize="19" FontWeight="SemiBold"/>
+            <TextBlock Text="Use the target user's Jira account ID; display names and email addresses are not accepted as identifiers." Style="{StaticResource Muted}" TextWrapping="Wrap"/>
+            <TextBox Text="{Binding AccountId, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Jira assignee account ID"/>
+            <Button Content="Prepare assignment" Command="{Binding PrepareAssignmentCommand}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Workflow transition" FontSize="19" FontWeight="SemiBold"/>
+            <ComboBox ItemsSource="{Binding Transitions}" SelectedItem="{Binding SelectedTransition}" AutomationProperties.Name="Available Jira transitions"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" Foreground="#16213B"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+            <Button Content="Prepare transition" Command="{Binding PrepareTransitionCommand}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Link issues" FontSize="19" FontWeight="SemiBold"/>
+            <ComboBox ItemsSource="{Binding LinkTypes}" SelectedItem="{Binding SelectedLinkType}" AutomationProperties.Name="Available Jira issue link types"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name, StringFormat='{}{0} (review direction below)'}" Foreground="#16213B"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+            <TextBlock Text="{Binding SelectedLinkType.Outward, StringFormat='Selected issue outward label: {0}'}" Style="{StaticResource Muted}"/>
+            <TextBlock Text="{Binding SelectedLinkType.Inward, StringFormat='Linked issue inward label: {0}'}" Style="{StaticResource Muted}"/>
+            <TextBox Text="{Binding LinkedIssueKey, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Issue to link"/>
+            <Button Content="Prepare link" Command="{Binding PrepareLinkCommand}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Clone issue" FontSize="19" FontWeight="SemiBold"/>
+            <TextBlock Text="Copies summary and description only. Comments, attachments, links, history and other fields are not copied." Style="{StaticResource Muted}" TextWrapping="Wrap"/>
+            <TextBox Text="{Binding CloneProjectKey, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Clone destination project key"/>
+            <TextBox Text="{Binding CloneIssueType, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Clone destination issue type"/>
+            <Button Content="Prepare clone" Command="{Binding PrepareCloneCommand}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}" Visibility="{Binding HasPreview, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
+            <TextBlock Text="Review the exact Jira action" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding Preview.Action, StringFormat='Action: {0}'}" Margin="0,8,0,0"/>
+            <TextBlock Text="{Binding Preview.IssueKey, StringFormat='Issue: {0}'}"/>
+            <TextBlock Text="{Binding Preview.Summary}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Preview.ExpiresAt, StringFormat='Expires: {0:g}'}" Style="{StaticResource Muted}"/>
+            <TextBox Text="{Binding Preview.PayloadJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="320" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Jira action payload"/>
+            <Button Content="Approve and execute" Command="{Binding ApproveCommand}" IsEnabled="{Binding CanApprove}" Style="{StaticResource Primary}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}" Visibility="{Binding HasResult, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
+            <TextBlock Text="{Binding Result.Message}" TextWrapping="Wrap"/>
+            <Button Content="Open cloned Jira issue" Tag="{Binding Result.IssueUrl}" Click="OpenIssue" Visibility="{Binding HasIssueUrl, Converter={StaticResource VisibleWhenTrue}}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+    </StackPanel>
+</UserControl>

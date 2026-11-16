@@ -19,9 +19,50 @@ public partial class MainWindow : Window
         viewModel.ClearCredentialInput += ClearToken;
         viewModel.ConfirmDiscardChanges += () => MessageBox.Show("Discard unsaved settings and load the selected integration?", "Unsaved settings",
             MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        if (viewModel.JiraCreate is not null)
+        {
+            viewModel.JiraCreate.ConfirmCreation += preview => MessageBox.Show(this,
+                $"Create exactly one Jira issue at {preview.SiteUrl}?\n\n{preview.Summary}\n\nOnly the payload you reviewed will be submitted. This cannot be undone from this app.",
+                "Approve Jira issue creation", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+            viewModel.JiraCreate.ConfirmDiscardDraft += () => MessageBox.Show(this, "Discard the current draft and chat?", "New Jira draft",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+        }
+        if (viewModel.JiraActions is not null)
+            viewModel.JiraActions.ConfirmAction += preview => MessageBox.Show(this,
+                $"{preview.Action} for Jira issue {preview.IssueKey}?\n\n{preview.Summary}\n\nReview the exact payload on screen. Jira will perform final permission and workflow validation. Do not approve if any field or destination is unexpected.",
+                $"Approve Jira action: {preview.Action}", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+        if (viewModel.ConfluenceAgent is not null)
+        {
+            viewModel.ConfluenceAgent.ConfirmSave += preview => MessageBox.Show(this,
+                $"{preview.Action} the Confluence page at {preview.SiteUrl}?\n\n{preview.Title} (space {preview.SpaceKey})\n\nReview the exact payload and confirm this is the intended page. Existing formatting is replaced with plain paragraphs. This cannot be undone from this app.",
+                "Approve Confluence page save", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+            viewModel.ConfluenceAgent.ConfirmDiscardDraft += () => MessageBox.Show(this, "Discard the current Confluence conversation and page draft?", "New Confluence draft",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+            viewModel.ConfluenceAgent.ConfirmDiscardConversation += () => MessageBox.Show(this, "Discard the current Confluence conversation and start a new one?", "New Confluence conversation",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+        }
+        if (viewModel.History is not null)
+        {
+            viewModel.History.ConfirmDelete += conversation => MessageBox.Show(this, $"Delete the saved {conversation.Agent} conversation '{conversation.Title}'?", "Delete conversation", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+            viewModel.History.ConfirmDeleteAll += () => MessageBox.Show(this, "Delete all saved Jira and Confluence conversation history?", "Delete all history", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+        }
+        if (viewModel.Activity is not null)
+            viewModel.Activity.ConfirmClear += () => MessageBox.Show(this, "Clear the local activity audit log?", "Clear activity", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
         Closing += (_, args) =>
         {
             if (viewModel.AnyBusy)
+            {
+                args.Cancel = true;
+                return;
+            }
+            if (viewModel.JiraCreate?.HasUnsavedDraft == true && MessageBox.Show(this, "Your Create Jira draft is only in memory. Discard it and close?", "Unsaved Jira draft",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            {
+                args.Cancel = true;
+                return;
+            }
+            if (viewModel.ConfluenceAgent?.HasUnsavedDraft == true && MessageBox.Show(this, "Your Confluence chat and draft are only in memory. Discard them and close?", "Unsaved Confluence draft",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             {
                 args.Cancel = true;
                 return;

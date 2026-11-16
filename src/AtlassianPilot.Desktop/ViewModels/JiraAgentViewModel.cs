@@ -12,7 +12,11 @@ public sealed class JiraAgentViewModel : ObservableObject
     private readonly IJiraAgent agent;
     private readonly IJiraIssueSearchService search;
     private readonly ISavedJiraSearchStore savedSearchStore;
+    private readonly IConversationHistoryStore? conversationHistory;
+    private readonly IActivityLogStore? activityLog;
     private readonly List<SavedJiraSearch> savedSearches = [];
+    private string? conversationId;
+    private DateTimeOffset conversationCreated;
     private JiraSearchChoice? selectedSearch;
     private JiraIssueDetails? issueDetails;
     private JiraIssueDraft? draft;
@@ -25,11 +29,14 @@ public sealed class JiraAgentViewModel : ObservableObject
     private bool busy;
     private CancellationTokenSource? operation;
 
-    public JiraAgentViewModel(IJiraAgent agent, IJiraIssueSearchService search, ISavedJiraSearchStore savedSearchStore)
+    public JiraAgentViewModel(IJiraAgent agent, IJiraIssueSearchService search, ISavedJiraSearchStore savedSearchStore,
+        IConversationHistoryStore? conversationHistory = null, IActivityLogStore? activityLog = null)
     {
         this.agent = agent;
         this.search = search;
         this.savedSearchStore = savedSearchStore;
+        this.conversationHistory = conversationHistory;
+        this.activityLog = activityLog;
         SendCommand = new AsyncCommand(SendAsync, ReportError);
         NewConversationCommand = new AsyncCommand(NewConversationAsync, ReportError);
         LoadMoreCommand = new AsyncCommand(LoadMoreAsync, ReportError);
@@ -172,6 +179,8 @@ public sealed class JiraAgentViewModel : ObservableObject
             return;
         }
         StartOperation();
+        string? activityAction = "Search issues";
+        var activityOutcome = "Failed";
         try
         {
             Messages.Add(new("You", input));
@@ -195,10 +204,12 @@ public sealed class JiraAgentViewModel : ObservableObject
             }
             CopilotRequestFinished?.Invoke(true);
             Messages.Add(new("Jira Agent", result.Content));
+            activityAction = result.Draft is not null ? null : result.IssueDetails is not null ? "Read issue" : result.SearchResult is not null ? "Search issues" : null;
+            activityOutcome = "Completed";
             IssueDetails = result.IssueDetails;
             Draft = result.Draft;
             if (result.Draft is not null)
-                Status = "Draft only: no Jira issue was created or validated. Issue creation is not yet available.";
+                Status = "Draft only: no Jira issue was created or validated here. Open Create Jira in the sidebar for refinement and approved creation.";
             else if (result.IssueDetails is not null)
                 Status = "Issue fields retrieved. Some nested collections may be paginated; history is not included.";
             else if (result.SearchResult is not null && result.Jql is not null)
@@ -212,9 +223,14 @@ public sealed class JiraAgentViewModel : ObservableObject
             }
             else Status = "No Jira issue was created or modified.";
         }
-        catch (OperationCanceledException) { Status = "Jira request cancelled."; }
+        catch (OperationCanceledException) { activityOutcome = "Cancelled"; Status = "Jira request cancelled."; }
         catch (Exception exception) { ReportError(exception); }
-        finally { FinishOperation(); }
+        finally
+        {
+            await PersistConversationAsync();
+            if (activityAction is not null) await RecordActivityAsync(activityAction, activityOutcome);
+            FinishOperation();
+        }
     }
 
     public async Task LoadMoreAsync()
@@ -230,9 +246,10 @@ public sealed class JiraAgentViewModel : ObservableObject
             foreach (var issue in result.Issues) Issues.Add(issue);
             SetPage(query, result.HasMore ? result.NextPageToken : null);
             Status = result.HasMore ? "More Jira results are available." : "All available pages have been loaded.";
+            await RecordActivityAsync("Search issues", "Completed");
         }
-        catch (OperationCanceledException) { Status = "Loading more results was cancelled."; }
-        catch (Exception exception) { ReportError(exception); }
+        catch (OperationCanceledException) { Status = "Loading more results was cancelled."; await RecordActivityAsync("Search issues", "Cancelled"); }
+        catch (Exception exception) { ReportError(exception); await RecordActivityAsync("Search issues", "Failed"); }
         finally { FinishOperation(); }
     }
 
@@ -248,6 +265,8 @@ public sealed class JiraAgentViewModel : ObservableObject
             IssueDetails = null;
             Draft = null;
             Prompt = "";
+            conversationId = null;
+            conversationCreated = default;
             SetPage(null, null);
             Status = "New conversation started.";
         }
@@ -269,6 +288,32 @@ public sealed class JiraAgentViewModel : ObservableObject
         operation = null;
         Busy = false;
         BusyChanged?.Invoke();
+    }
+
+    private async Task PersistConversationAsync()
+    {
+        if (conversationHistory is null || Messages.Count == 0) return;
+        var now = DateTimeOffset.UtcNow;
+        conversationId ??= Guid.NewGuid().ToString("N");
+        if (conversationCreated == default) conversationCreated = now;
+        var title = Messages.FirstOrDefault(message => message.Speaker == "You")?.Text ?? "Jira conversation";
+        if (title.Length > 120) title = title[..120];
+        try
+        {
+            var messages = Messages.Select(message => new AgentConversationMessage(message.Speaker, message.Text, now)).ToArray();
+            await conversationHistory.SaveAsync(new(conversationId, IntegrationKind.Jira, title, conversationCreated, now, messages));
+        }
+        catch (Exception)
+        {
+            Status += " Conversation is visible now but could not be saved to local history.";
+        }
+    }
+
+    private async Task RecordActivityAsync(string action, string outcome)
+    {
+        if (activityLog is null) return;
+        try { await activityLog.RecordAsync(IntegrationKind.Jira, action, outcome); }
+        catch (Exception) { Status += " Activity log could not be saved locally."; }
     }
 
     private void SetPage(string? query, string? token)

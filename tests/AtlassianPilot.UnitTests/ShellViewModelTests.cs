@@ -25,6 +25,23 @@ public sealed class ShellViewModelTests : IDisposable
     }
 
     [Fact]
+    public void EmptyModelListExplainsHowToLoadModelsAndUpdatesWhenTheyArrive()
+    {
+        var viewModel = CreateViewModel();
+        Assert.False(viewModel.HasAvailableModels);
+        Assert.Contains("Sign in with GitHub or test the connection", viewModel.AvailableModelsStatus);
+        var changed = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        viewModel.AvailableModels.Add(new CopilotModel("test-model", "Test model"));
+
+        Assert.True(viewModel.HasAvailableModels);
+        Assert.Contains("1 model(s) available", viewModel.AvailableModelsStatus);
+        Assert.Contains(nameof(viewModel.HasAvailableModels), changed);
+        Assert.Contains(nameof(viewModel.AvailableModelsStatus), changed);
+    }
+
+    [Fact]
     public async Task SavingClearsTokenInputAndNeverReportsConnected()
     {
         var viewModel = CreateViewModel();

@@ -4,11 +4,11 @@
 
 A single-user Windows WPF desktop workspace for GitHub Copilot-powered Jira and Confluence agents.
 
-## Current build: early Jira search
+## Current build: Jira and Confluence agents with approved writes
 
 Implemented:
 - .NET 10 WPF shell, original branding, light/dark themes and personal-use attribution.
-- SQLite settings and Windows DPAPI-encrypted Atlassian credentials, preserved across this update.
+- SQLite settings and Windows DPAPI-encrypted Atlassian credentials.
 - Automatic integration-form switching with confirmation before discarding unsaved edits.
 - Real read-only Jira/Confluence account connection tests using saved settings only.
 - Authentication/permission errors, bounded response validation, transient read retries, rate-limit handling, timeouts and cancellation.
@@ -16,13 +16,16 @@ Implemented:
 - GitHub device authorization UI, secure-storage enforcement, sign-out and actual model discovery.
 - A read-only Jira issue-search service, a Jira Agent screen, actual issue cards and continuation pagination. Search results are taken only from Jira responses; the UI does not present model-generated issue facts as API results.
 - Read-only issue details by issue key, including a readable description and raw Jira fields.
-- Local, temporary issue-draft previews from natural-language requests; these do not validate or create issues.
-- Read-only lookup of Jira create-screen fields for a specified project and issue type, including field names, types and required/default flags. Field metadata is sent to Copilot for its response.
+- A dedicated **Create Jira** chat: refine rough notes into a summary, user story and acceptance criteria; request revisions or edit content directly.
+- Project-specific Jira issue types and create fields, optional compatible reference defaults, required-field checks, and an exact payload preview. Creation requires a separate explicit confirmation and returns the Jira issue link.
+- A **Jira Actions** screen for issue summary/description updates, comments, assignment by account ID, available workflow transitions, issue links, and clone previews. All writes require explicit approval of the exact payload and are submitted once without automatic retry. Clone copies summary/description only and is blocked when unsupported required fields lack defaults.
+- A Confluence Agent chat for page search, reading, analysis, and Copilot-assisted create/update drafts. Chat proposals flow into the editable page form; pages fetched for analysis are also shown with a **Load page for editing** action. New pages use the configured default space when the prompt omits one. Every page write requires an exact preview and separate explicit approval.
+- Local Agent History and Activity Logs, with transcript and audit retention limits, deletion controls, and activity entries restricted to non-sensitive labels.
 - Offline regression tests using mocked HTTP/runtime services and real SQLite/DPAPI.
 
-**Verification:** Copilot sign-in, read-only Jira searches and a single read-only issue-details request have been exercised with an authorized account. Saved configuration is not a verified connection; account verification does not establish every project/space permission or model inference.
+**Verification:** 172 automated tests pass, including Confluence chat-to-editor create/update paths and model-list empty-state coverage. Jira writes and clone safety are covered with mocked API tests; no new live Jira write has been performed. A live read-only Confluence search returned five results and a continuation token; no page content was printed and no writes were performed. Security review found no substantiated vulnerabilities. API responses and result lists are bounded, network calls have timeouts, and the complete regression suite ran in 2.3 seconds in this environment. Saved configuration is not a verified connection; account verification does not establish every project/space permission or model inference.
 
-**Not enabled yet:** Jira creation/updates/comments/cloning, Confluence agent operations, persistent conversation browsing and agent audit logs. The issue-details response can contain paginated nested collections, and does not include issue history.
+**Still planned:** Jira search remains read-only, and issue details do not include complete paginated nested collections or issue history. Jira Actions are deliberate manual workflows rather than natural-language write commands; cloning intentionally copies only summary and description, and updates currently edit only summary/description. Confluence page writes require exact-preview approval.
 
 ## Run on Windows
 
@@ -42,10 +45,10 @@ In Visual Studio, open `AtlassianPilot.sln`, select `AtlassianPilot.Desktop` as 
 For a self-contained Windows x64 release:
 
 ```powershell
-dotnet publish src\AtlassianPilot.Desktop\AtlassianPilot.Desktop.csproj -c Release -r win-x64 --self-contained true -o artifacts\win-x64
+dotnet publish src\AtlassianPilot.Desktop\AtlassianPilot.Desktop.csproj -c Release -r win-x64 --self-contained true -o artifacts\win-x64-agent-ready
 ```
 
-Launch `artifacts\win-x64\AtlassianPilot.Desktop.exe`. The desktop app does not require a local web server, administrator privileges or cloud storage. GitHub device sign-in uses a browser. Workplace execution/installation policies still apply. A signed installer and shortcut packaging are planned for Phase 6.
+Launch `artifacts\win-x64-agent-ready\AtlassianPilot.Desktop.exe`. The desktop app does not require a local web server, administrator privileges or cloud storage. GitHub device sign-in uses a browser. Workplace execution/installation policies still apply. A signed installer and shortcut packaging remain future distribution work.
 
 ## Beginner setup guide
 
@@ -56,7 +59,7 @@ You do not need to know programming or run the developer commands above to confi
 On this development PC, open:
 
 ```text
-C:\Repo\AtlasianFriend\artifacts\win-x64-create-fields\AtlassianPilot.Desktop.exe
+C:\Repo\AtlasianFriend\artifacts\win-x64-agent-ready\AtlassianPilot.Desktop.exe
 ```
 
 You can right-click the executable and use **Show more options > Send to > Desktop (create shortcut)** if your Windows configuration offers that option. Keep the entire published folder together: the executable needs the accompanying files. On another PC, copy that whole folder to a location your workplace permits, then open the executable there.
@@ -152,13 +155,41 @@ Use **Switch light / dark** in the sidebar to change appearance. The selected th
 
 ### 8. Search Jira issues
 
-Once GitHub Copilot sign-in succeeds, open **Jira Agent**, enter a request such as `Find my issues that are In Progress`, and select **Search with Copilot**. The JQL generated by Copilot and issue cards are shown after Jira responds; select an issue key to open it in your browser. Select **Load more** when additional pages are available. The default project key does not automatically restrict searches; include the project in your request when needed. This release shows only the latest search's results and uses a temporary visible chat; starting a new conversation clears that display, not necessarily the Copilot runtime's local files. Searches cannot create or modify issues.
+Once GitHub Copilot sign-in succeeds, open **Jira Agent**, enter a request such as `Find my issues that are In Progress`, and select **Search with Copilot**. The JQL generated by Copilot and issue cards are shown after Jira responds; select an issue key to open it in your browser. Select **Load more** when additional pages are available. The default project key does not automatically restrict searches; include the project in your request when needed. Jira conversations are saved locally for 30 days and can be reviewed or deleted under **Agent History**. Starting a new conversation clears the visible transcript for the next session; it does not guarantee deletion of data retained by the Copilot runtime. Searches cannot create or modify issues.
 
 To reuse a search, select an example or saved search in **Saved searches and examples**, then click **Use selected**. This fills the request without running it. Replace bracketed placeholders such as `[project key]` and review the scope before searching. To save your own, enter the request and a name, then click **Save as new search**. To rename or change a saved search, select it, click **Use selected**, edit its name or request, and click **Update selected search**. Use **Delete saved search** to remove a saved search after confirmation; examples cannot be deleted or changed, but you can save a customized copy. Saved search names and requests are stored unencrypted in `%LOCALAPPDATA%\AtlassianPilot\workspace.db`, so do not include tokens or other secrets. Use one app instance when editing saved searches to avoid overwriting changes from another instance.
 
 To inspect an issue, ask **Show details for ABC-123**, replacing the example with your issue key. The app displays a readable summary and description, plus the raw Jira fields. The description rendering is simplified; consult the raw fields for formatting and non-text content. Jira may paginate nested collections such as comments, and issue history is not included. Open the issue in Jira for complete collections and history. The request and issue key go to Copilot, but the full details response stays local and is not available for Copilot to summarize. Results depend on your Jira permissions.
 
-To prepare a local preview, ask for a draft and provide the project key, issue type, summary and requirements. Review the generated content carefully; the draft is temporary, is not checked against Jira project requirements, and cannot yet be approved or created in Jira. The request is sent to Copilot. Do not include secrets. To inspect available create-screen fields separately, ask, for example, **Which fields are available when creating a Task in project WOR?** This read-only lookup returns names, types and required/default flags, not allowed values or field validation. Fields vary by project, issue type and permissions.
+The search agent can still prepare read-only draft previews. To refine rough notes and create an issue after approval, use **Create Jira**, described below. To inspect create-screen fields separately, ask **Which fields are available when creating a Task in project WOR?** Fields vary by project, issue type and permissions.
+
+### 9. Refine rough notes and create a Jira issue
+
+1. Open **Create Jira** in the sidebar. Paste your rough content into **Rough content or revision instructions**, then click **Refine story with Copilot**. You do not need to supply a title or a special prompt.
+2. Review the proposed summary and description, including the user story, background, scope and acceptance criteria. Edit them directly, or type further chat instructions and refine again. Technical names should be preserved; check all facts and resolve open questions before approval.
+3. Enter the project key and click **Load issue types**. Select an actual type returned by Jira. For example, a project may offer Task but not Story; you can use a story-formatted description in a Task, but the app will not silently substitute a type.
+4. Optionally enter a reference key, such as `WOR-742`, then click **Load fields / reference defaults**. The reference must have the same project and issue type. Compatible fields such as assignee, priority, labels, dates, teams and options can be prefilled for your review. No reference is loaded automatically. Summary, description, parent, reporter, status, history, attachments, links, restrictions and unsupported/computed fields are not copied. Enter an intended parent/epic separately.
+5. Review the field editors. Use dropdown options where offered, account IDs for user fields, and `yyyy-MM-dd` for dates. Less common complex fields use JSON and show format guidance. Blank optional fields are omitted and may receive Jira defaults. Unsupported required fields without defaults block creation rather than being ignored.
+6. Click **Prepare approval preview**. The app reloads Jira create metadata and checks required fields, supported formats and supplied options. Review the destination and exact field payload, including the description in Atlassian Document Format. Jira still performs final permission, hierarchy and workflow validation.
+7. Click **Approve and create Jira**, then confirm the dialog. Only this action sends one create request. The resulting issue key opens Jira in your browser. Declining confirmation makes no Jira changes.
+
+Any content, configuration, parent or field edit invalidates the prepared approval. Approvals expire after 15 minutes and can be used only once. Changing saved Jira settings or credentials also invalidates a prepared submission. The app never automatically retries creation. If a timeout, lost response or unexpected response makes the outcome uncertain, check Jira before preparing another approval to avoid duplicates. After a successful creation, start a new draft before creating another issue.
+
+The editable Create Jira form values and prepared preview are temporary and are not restored when reopening the app. Conversation messages are saved locally for 30 days and can be reviewed or deleted under **Agent History**; closing the app warns before discarding unsaved form content. The Copilot runtime may retain local session data. Rough notes and the current summary/description are sent to Copilot, but reference field values and creation payloads are not sent by this drafting workflow. Do not include secrets. Automated creation tests use mocked Jira responses; live validation deliberately stops before approval and does not create test issues in your workspace.
+
+### 10. Update, comment, assign, transition, link or clone a Jira issue
+
+Open **Jira Actions**. Enter the source issue key, then use the relevant action card. Updates support summary and description; comments are converted to plain-text paragraphs. Assignment requires the target user's Jira account ID (not a display name or email). Load available transitions and link types from Jira, choose an exact returned option, and review the link direction labels. Cloning asks for a destination project and issue type, loads the source issue and destination create metadata, and previews a new issue containing only the source summary and description. Required destination fields without defaults block clone preparation; use **Create Jira** to provide additional fields. Comments, attachments, links, history, and other fields are not cloned.
+
+Every action first creates an exact payload preview; editing inputs discards it. Confirm the preview on screen, then select **Approve and execute** and confirm the warning. Jira applies final permissions and workflow rules. Each approval expires after 15 minutes and is single-use; requests are not retried. If a timeout or interrupted response makes the outcome uncertain, check Jira before trying again. All actions and outcomes use fixed labels in Activity Logs without recording prompts or payloads.
+
+### 11. Use the Confluence Agent, history and activity log
+
+Open **Confluence Agent** and make requests in chat to search/read pages, summarize or compare results, create a page, or change an existing page. For a requested edit, Copilot should retrieve the current page and propose the complete revised title and body; title-only changes preserve the body. The proposal appears in the editable form. A page fetched for analysis is also shown in the results with **Load page for editing** if you need to make or complete an edit manually. New pages use the configured default space if your prompt omits one; otherwise specify the space. Search and page reads use your saved Confluence account. Page titles and content sent to Copilot are online business data; follow your organization's data-handling rules. Page content is treated as untrusted input, and Copilot cannot publish directly.
+
+Review the complete exact payload in **Prepare exact save preview**. For updates, the current page is replaced with escaped plain-text paragraphs; existing rich formatting is not preserved. Any edit invalidates the preview, which expires after 15 minutes. Only **Approve and save page** followed by confirmation sends the write request; ambiguous results are not retried. Use **Open saved Confluence page** to inspect the result.
+
+**Agent History** stores Jira and Confluence chat messages in the local SQLite database for 30 days (up to 200 messages per conversation). Use its agent filter to review transcripts, delete one, or clear all. **Activity Logs** records only fixed agent/action/outcome labels, not prompts, page text, issue content, or request payloads; records are retained for 90 days and capped at 5,000. The database is not encrypted, so avoid secrets and sensitive content, and delete records when no longer needed. Confluence page drafts and the Jira creation form values are not restored from history.
 
 ### Troubleshooting
 
@@ -177,7 +208,7 @@ To prepare a local preview, ask for a draft and provide the project key, issue t
 | A test will not start | Save edits first. Tests intentionally use saved settings and tokens only. |
 | GitHub secure credential storage failed | The app refuses plaintext storage. Ask IT to check Windows Credential Manager access. |
 | Jira Agent asks you to sign in | Sign in through **AI Configuration** first. If the device-code request fails, consult IT about the native runtime's approved network access. |
-| Confluence Agent shows an availability message | Confluence agent operations are not implemented yet. |
+| Confluence Agent cannot find or save a page | Check the saved Confluence connection, space key, page ID, and the account's space permissions. Updates replace rich formatting with plain paragraphs; review the exact preview before approving. |
 | Navigation is blocked while editing settings | Save your changes or reload the integration to discard them before leaving. Closing with unsaved changes also asks for confirmation. |
 | Local storage operation fails | Check that your Windows account can write to `%LOCALAPPDATA%\AtlassianPilot`; contact workplace IT if access is restricted. |
 | Credentials fail after moving to another Windows profile/PC | Re-enter tokens on that profile/PC. DPAPI-encrypted tokens are not portable credentials. |
@@ -186,11 +217,11 @@ The direct Jira search API, pagination and Copilot-assisted natural-language sea
 
 ## Local data and security
 
-Data resides in `%LOCALAPPDATA%\AtlassianPilot\workspace.db`. Non-secret configuration is stored as SQLite columns. Credential columns contain only DPAPI ciphertext; credentials and settings are updated in one atomic database statement. This intentionally keeps encrypted credentials in SQLite rather than separate secret files, avoiding partial updates across two stores.
+Data resides in `%LOCALAPPDATA%\AtlassianPilot\workspace.db`. Non-secret configuration and locally retained conversation messages/activity labels are stored in SQLite. Credential columns contain only DPAPI ciphertext; credentials and settings are updated in one atomic database statement. This intentionally keeps encrypted credentials in SQLite rather than separate secret files, avoiding partial updates across two stores.
 
-DPAPI binds ciphertext to your Windows user profile. It does not protect against a compromised process running as that same user. Copying the database to another computer/profile is not a credential migration strategy; re-enter credentials there. The entire database is not encrypted. Future conversation/audit content can contain sensitive business data and will need appropriate retention controls.
+DPAPI binds ciphertext to your Windows user profile. It does not protect against a compromised process running as that same user. Copying the database to another computer/profile is not a credential migration strategy; re-enter credentials there. The database is not encrypted: transcripts can include business content and are retained for 30 days; activity entries use fixed labels and are retained for 90 days (up to 5,000 records). Use the in-app delete/clear controls and follow workplace data-handling rules.
 
-Tokens are not data-bound, returned in settings models, written to logs or stored in browser storage. No credentials are needed to run this phase. Tests use only dummy tokens and temporary databases, never real Atlassian access.
+Tokens are not data-bound, returned in settings models, written to logs or stored in browser storage. The automated regression suite requires no credentials and uses only dummy tokens and temporary databases. Using the application with real Jira or Copilot requires your configured credentials and access.
 
 Local storage does **not** mean offline AI: when searching with Copilot, your instructions and returned Jira issue details are sent to GitHub Copilot. Your account needs appropriate Copilot access and organization policy approval. This app will not inherit Visual Studio conversations, tools or credentials automatically. The official Copilot runtime may retain session data (including instructions and tool results) under `%LOCALAPPDATA%\AtlassianPilot\copilot`; starting a new visible conversation or closing the app does not guarantee deletion of those files. Do not enter secrets into the chat, and follow your employer's data handling rules.
 
@@ -209,17 +240,17 @@ src\
 Direct SQLite is used for the small foundation schema instead of introducing EF Core. The schema is versioned and future migrations will preserve existing data.
 
 1. **Foundation:** runnable branded desktop shell and secure local settings (completed).
-2. **Integrations:** Jira/Confluence tests and official Copilot runtime/sign-in/model-discovery implementation.
-3. **Jira Agent:** read-only issue search and issue-field retrieval implemented; create, comment, update and clone remain planned, with explicit approvals for writes.
-4. **Confluence Agent:** real search, create/update, content improvement and explainable duplicate analysis.
-5. **Advanced features:** persisted conversations, activity reporting, filters and retention controls.
-6. **Packaging:** regression/security review, performance checks and Windows distribution.
+2. **Integrations:** Jira/Confluence connection tests and official Copilot runtime/sign-in/model discovery (implemented; verify with your own accounts).
+3. **Jira Agent:** search, issue details, saved searches, approval-gated issue creation, and manual approval-gated updates/comments/assignment/transitions/links/limited cloning (implemented). Search remains read-only.
+4. **Confluence Agent:** real search/read, Copilot-assisted analysis and draft proposals, plus approval-gated page creation/updates (implemented; formatting is simplified on update).
+5. **Agent history and activity:** local transcript browsing/deletion, restricted activity labels and retention controls (implemented; SQLite is not encrypted).
+6. **Packaging and release assurance:** a self-contained Windows x64 build and portable archive are published locally. Security review, bounded-response/performance checks and live read-only Confluence search smoke test are complete. A trusted signed installer still requires an organization-issued code-signing certificate and identity; no certificate was available, so the release remains unsigned and portable.
 
 Each capability will include backend/service logic, desktop UI, validation and tests before moving on. Initial Atlassian compatibility targets **Cloud**, not Data Center. Non-idempotent modifications will never be blindly retried.
 
 ### Possible Jira enhancements
 
-The [Jira Cloud REST API v3 issue documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/) can guide future enhancements, including complete comment and history pagination, creation, updates, assignment, workflow transitions, comments, links and cloning. These enhancements are not yet implemented and depend on Jira permissions and project configuration. Any changes should be previewed and explicitly approved before execution.
+The [Jira Cloud REST API v3 issue documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/) can guide future enhancements, including complete comment/history pagination, richer custom-field editing for updates and clone, copying compatible fields/attachments/links when cloning, and Copilot-assisted natural-language preparation of Jira Actions. Current operations depend on Jira permissions and project configuration; every write must remain previewed and explicitly approved.
 
 ## Help, authorship and copyright
 

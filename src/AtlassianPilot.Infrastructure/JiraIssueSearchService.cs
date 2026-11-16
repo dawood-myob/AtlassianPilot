@@ -7,8 +7,8 @@ using AtlassianPilot.Core;
 
 namespace AtlassianPilot.Infrastructure;
 
-public sealed class JiraIssueSearchService(HttpClient http, ISettingsStore settings, ICredentialStore credentials)
-    : IJiraIssueSearchService, IJiraIssueDetailsService, IJiraCreateMetadataService
+public sealed partial class JiraIssueSearchService(HttpClient http, ISettingsStore settings, ICredentialStore credentials)
+    : IJiraIssueSearchService, IJiraIssueDetailsService, IJiraCreateMetadataService, IJiraIssueCreationService
 {
     private static readonly string[] Fields = ["summary", "status", "assignee", "priority", "issuetype"];
     private const int MaximumResponseBytes = 2 * 1024 * 1024;
@@ -193,8 +193,16 @@ public sealed class JiraIssueSearchService(HttpClient http, ISettingsStore setti
                     !field.TryGetProperty("required", out var required) || required.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                     throw new JsonException();
                 var schemaType = field.TryGetProperty("schema", out var schema) && schema.ValueKind == JsonValueKind.Object && TryGetString(schema, "type", out var type) ? type : "unknown";
-                fields.Add(new(fieldId, name, schemaType, required.GetBoolean(), field.TryGetProperty("hasDefaultValue", out var def) && def.ValueKind == JsonValueKind.True));
+                var allowed = field.TryGetProperty("allowedValues", out var options) && options.ValueKind == JsonValueKind.Array ? options.GetRawText() : null;
+                var items = schema.ValueKind == JsonValueKind.Object && TryGetString(schema, "items", out var itemType) ? itemType : null;
+                var custom = schema.ValueKind == JsonValueKind.Object && TryGetString(schema, "custom", out var customType) ? customType : null;
+                // Jira can report empty operations for the selected create context, which must still be submitted.
+                var canSet = fieldId is "project" or "issuetype" || !field.TryGetProperty("operations", out var operations) ||
+                    operations.ValueKind == JsonValueKind.Array && operations.EnumerateArray().Any(op => op.ValueKind == JsonValueKind.String && op.GetString() == "set");
+                fields.Add(new(fieldId, name, schemaType, required.GetBoolean(), field.TryGetProperty("hasDefaultValue", out var def) && def.ValueKind == JsonValueKind.True,
+                    allowed, items, custom, canSet));
             }
+            if (fields.Select(field => field.Id).Distinct(StringComparer.Ordinal).Count() != fields.Count) throw new JsonException();
             return new(projectKey, issueType.Trim(), id, fields);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new IntegrationException("Jira create metadata timed out. Check your network and try again."); }

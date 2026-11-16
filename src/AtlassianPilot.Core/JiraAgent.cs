@@ -21,7 +21,8 @@ public sealed record JiraIssueDetails(string Key, Uri Url, string FieldsJson, st
 
 public sealed record JiraIssueDraft(string ProjectKey, string IssueType, string Summary, string Description, string? ParentKey);
 
-public sealed record JiraCreateField(string Id, string Name, string SchemaType, bool Required, bool HasDefault);
+public sealed record JiraCreateField(string Id, string Name, string SchemaType, bool Required, bool HasDefault,
+    string? AllowedValuesJson = null, string? SchemaItems = null, string? SchemaCustom = null, bool CanSet = true);
 public sealed record JiraCreateMetadata(string ProjectKey, string IssueType, string IssueTypeId, IReadOnlyList<JiraCreateField> Fields);
 
 public interface IJiraCreateMetadataService

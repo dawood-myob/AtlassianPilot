@@ -1,0 +1,54 @@
+<UserControl x:Class="AtlassianPilot.Desktop.Views.ConfluenceAgentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <Border Style="{StaticResource Card}"><StackPanel>
+            <TextBlock Text="Confluence Agent" FontSize="28" FontWeight="SemiBold"/>
+            <TextBlock Text="Search and analyze real Confluence pages, then draft new or improved content. Copilot cannot publish. Page content and prompts are sent to Copilot online; chat messages are saved unencrypted in the local database for 30 days and can be removed in Agent History. Draft form values are temporary. Existing page formatting is simplified to plain paragraphs in the editable preview." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,10,0,14"/>
+            <WrapPanel><Button Content="New conversation" Command="{Binding NewConversationCommand}" IsEnabled="{Binding CanEdit}"/><Button Content="New page draft" Command="{Binding NewDraftCommand}" IsEnabled="{Binding CanEdit}"/><Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"/></WrapPanel>
+            <ItemsControl ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate>
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,8,0,0"><StackPanel>
+                    <TextBlock Text="{Binding Speaker}" FontWeight="SemiBold" Foreground="{DynamicResource CyanBrush}"/>
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel></Border>
+            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+            <TextBlock Text="Ask naturally, for example: Find pages about on-call alerts in the WOR space; summarize page 123456; identify possible duplicates; or improve page 123456 while preserving its intent." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,14,0,8"/>
+            <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="220" VerticalScrollBarVisibility="Auto" MaxLength="4000" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Confluence request"/>
+            <WrapPanel><Button Content="Ask Confluence Agent" Style="{StaticResource Primary}" Command="{Binding SendCommand}" IsEnabled="{Binding CanEdit}"/><Button Content="Load more results" Command="{Binding LoadMoreCommand}" IsEnabled="{Binding CanLoadMore}"/></WrapPanel>
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,4,0,8" Visibility="{Binding Busy, Converter={StaticResource VisibleWhenTrue}}"/>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}" Visibility="{Binding HasPages, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
+            <TextBlock Text="Confluence search results" FontSize="20" FontWeight="SemiBold"/>
+            <ItemsControl ItemsSource="{Binding Pages}"><ItemsControl.ItemTemplate><DataTemplate>
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,8,0,0"><StackPanel>
+                    <WrapPanel><Button Content="{Binding Title}" Tag="{Binding Url}" Click="OpenPage" HorizontalAlignment="Left"/><TextBlock Text="{Binding SpaceKey, StringFormat='Space: {0}'}" VerticalAlignment="Center" Margin="12,0,0,0"/></WrapPanel>
+                    <TextBlock Text="{Binding Excerpt}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    <Button Content="Load page for editing" Command="{Binding DataContext.LoadPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Id}" HorizontalAlignment="Left"/>
+                </StackPanel></Border>
+            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="Review or edit page content" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="Leave Page ID blank to create a page. Supply or load a numeric Page ID to update. Copilot proposals are never published automatically." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12"/>
+            <TextBlock Text="Space key"/><TextBox Text="{Binding SpaceKey, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Confluence space key"/>
+            <TextBlock Text="Page ID (blank for a new page)" Margin="0,8,0,0"/><TextBox Text="{Binding PageId, UpdateSourceTrigger=PropertyChanged}" MaxLength="32" AutomationProperties.Name="Confluence page ID"/>
+            <TextBlock Text="Title" Margin="0,8,0,0"/><TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" AutomationProperties.Name="Confluence page title"/>
+            <TextBlock Text="Page body" Margin="0,8,0,0"/><TextBox Text="{Binding Content, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="220" MaxHeight="480" VerticalScrollBarVisibility="Auto" MaxLength="32000" AutomationProperties.Name="Confluence page content"/>
+            <Button Content="Prepare exact save preview" Command="{Binding PrepareSaveCommand}" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,14,0,0"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}" Visibility="{Binding HasPreview, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
+            <TextBlock Text="Review and approve the exact Confluence request" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding Preview.Action, StringFormat='Action: {0}'}" Margin="0,8,0,0"/>
+            <TextBlock Text="{Binding Preview.Title, StringFormat='Title: {0}'}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Preview.SpaceKey, StringFormat='Space: {0}'}"/>
+            <TextBlock Text="Updating replaces the body with escaped plain-text paragraphs. Review carefully. This exact preview expires after 15 minutes; any edit invalidates it. Nothing is saved until you approve." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+            <TextBox Text="{Binding PreviewJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="360" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Exact Confluence save payload"/>
+            <Button Content="Approve and save page" Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}" Style="{StaticResource Primary}" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+        <Border Style="{StaticResource Card}" Visibility="{Binding HasSavedPage, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+            <Button Content="Open saved Confluence page" Tag="{Binding SavedPage.Url}" Click="OpenPage" HorizontalAlignment="Left"/>
+        </StackPanel></Border>
+    </StackPanel>
+</UserControl>

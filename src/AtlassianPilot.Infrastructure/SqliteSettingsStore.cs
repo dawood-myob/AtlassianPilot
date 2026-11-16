@@ -18,18 +18,36 @@ public sealed class SqliteSettingsStore(string databasePath, ISecretProtector pr
         using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA user_version";
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
-        if (version > 1) throw new InvalidOperationException("This workspace requires a newer version of AtlassianPilot.");
+        if (version > 2) throw new InvalidOperationException("This workspace requires a newer version of AtlassianPilot.");
         command.CommandText = "PRAGMA journal_mode=WAL";
         await command.ExecuteNonQueryAsync(cancellationToken);
-        if (version == 1) return;
+        if (version == 2) return;
         using var transaction = connection.BeginTransaction();
         command.Transaction = transaction;
-        command.CommandText = """
+        command.CommandText = version == 0 ? """
             CREATE TABLE IF NOT EXISTS integrations (
                 kind TEXT PRIMARY KEY, base_url TEXT NOT NULL, email TEXT NOT NULL,
                 default_scope TEXT NOT NULL, model TEXT NOT NULL, credential BLOB);
             CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            PRAGMA user_version=1;
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY, agent TEXT NOT NULL, title TEXT NOT NULL, created_utc TEXT NOT NULL,
+                updated_utc TEXT NOT NULL, messages_json TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS conversations_updated ON conversations(updated_utc DESC);
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, created_utc TEXT NOT NULL, agent TEXT NOT NULL,
+                action TEXT NOT NULL, outcome TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS activity_created ON activity_log(created_utc DESC);
+            PRAGMA user_version=2;
+            """ : """
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY, agent TEXT NOT NULL, title TEXT NOT NULL, created_utc TEXT NOT NULL,
+                updated_utc TEXT NOT NULL, messages_json TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS conversations_updated ON conversations(updated_utc DESC);
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, created_utc TEXT NOT NULL, agent TEXT NOT NULL,
+                action TEXT NOT NULL, outcome TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS activity_created ON activity_log(created_utc DESC);
+            PRAGMA user_version=2;
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

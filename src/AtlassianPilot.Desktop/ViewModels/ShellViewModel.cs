@@ -31,12 +31,33 @@ public sealed class ShellViewModel : ObservableObject
     private bool hasCredential;
     private IntegrationKind requestedIntegration;
 
-    public ShellViewModel(ISettingsStore settings, IAtlassianConnectionTester atlassian, ICopilotConnection copilot, JiraAgentViewModel? jiraAgent = null)
+    public ShellViewModel(ISettingsStore settings, IAtlassianConnectionTester atlassian, ICopilotConnection copilot, JiraAgentViewModel? jiraAgent = null, JiraCreateViewModel? jiraCreate = null, ConfluenceAgentViewModel? confluenceAgent = null, AgentHistoryViewModel? history = null, ActivityLogViewModel? activity = null, JiraActionsViewModel? jiraActions = null)
     {
         this.settings = settings;
         this.atlassian = atlassian;
         this.copilot = copilot;
+        AvailableModels.CollectionChanged += (_, _) => { Changed(nameof(HasAvailableModels)); Changed(nameof(AvailableModelsStatus)); };
         JiraAgent = jiraAgent;
+        JiraCreate = jiraCreate;
+        ConfluenceAgent = confluenceAgent;
+        History = history;
+        Activity = activity;
+        JiraActions = jiraActions;
+        if (JiraActions is not null) JiraActions.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+        if (History is not null) History.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+        if (Activity is not null) Activity.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+        if (ConfluenceAgent is not null)
+        {
+            ConfluenceAgent.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+            ConfluenceAgent.CopilotRequestStarted += () => CopilotState = "Checking...";
+            ConfluenceAgent.CopilotRequestFinished += success => CopilotState = success ? "Connected (last request)" : "Status unknown";
+        }
+        if (JiraCreate is not null)
+        {
+            JiraCreate.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
+            JiraCreate.CopilotRequestStarted += () => CopilotState = "Checking...";
+            JiraCreate.CopilotRequestFinished += success => CopilotState = success ? "Connected (last request)" : "Status unknown";
+        }
         if (JiraAgent is not null)
         {
             JiraAgent.BusyChanged += () => { Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); };
@@ -56,7 +77,7 @@ public sealed class ShellViewModel : ObservableObject
     }
 
     public ObservableCollection<string> Sections { get; } =
-        ["Dashboard", "Jira Agent", "Confluence Agent", "Agent History", "Integrations & Settings", "AI Configuration", "Activity Logs"];
+        ["Dashboard", "Jira Agent", "Create Jira", "Jira Actions", "Confluence Agent", "Agent History", "Integrations & Settings", "AI Configuration", "Activity Logs"];
     public ICommand NavigateCommand { get; }
     public ICommand SaveCommand { get; }
     public ICommand DeleteCredentialCommand { get; }
@@ -68,7 +89,16 @@ public sealed class ShellViewModel : ObservableObject
     public ICommand CancelCommand { get; }
     public ICommand UseModelCommand { get; }
     public ObservableCollection<CopilotModel> AvailableModels { get; } = [];
+    public bool HasAvailableModels => AvailableModels.Count > 0;
+    public string AvailableModelsStatus => HasAvailableModels
+        ? $"{AvailableModels.Count} model(s) available. Select one to set the preference."
+        : "No models loaded. Sign in with GitHub or test the connection to load available models.";
     public JiraAgentViewModel? JiraAgent { get; }
+    public JiraCreateViewModel? JiraCreate { get; }
+    public ConfluenceAgentViewModel? ConfluenceAgent { get; }
+    public JiraActionsViewModel? JiraActions { get; }
+    public AgentHistoryViewModel? History { get; }
+    public ActivityLogViewModel? Activity { get; }
     public event Action<string>? ThemeChanged;
     public event Action? ClearCredentialInput;
     public event Func<bool>? ConfirmDiscardChanges;
@@ -83,19 +113,21 @@ public sealed class ShellViewModel : ObservableObject
     public string CopyrightNotice => "Copyright (c) 2026 Dawood Ali. All rights reserved.";
     public string UsageNotice => "Developed for personal use only. Third-party components remain subject to their respective licenses. Not affiliated with or endorsed by Atlassian or GitHub.";
     public bool IsHelp => SelectedSection == "Help & About";
-    public string SelectedSection { get => selectedSection; private set { Set(ref selectedSection, value); Changed(nameof(IsDashboard)); Changed(nameof(IsSettings)); Changed(nameof(IsAgent)); Changed(nameof(IsJiraAgent)); Changed(nameof(IsHistory)); Changed(nameof(IsLogs)); Changed(nameof(IsHelp)); Changed(nameof(AgentDescription)); } }
+    public string SelectedSection { get => selectedSection; private set { Set(ref selectedSection, value); Changed(nameof(IsDashboard)); Changed(nameof(IsSettings)); Changed(nameof(IsAgent)); Changed(nameof(IsJiraAgent)); Changed(nameof(IsJiraCreate)); Changed(nameof(IsJiraActions)); Changed(nameof(IsHistory)); Changed(nameof(IsLogs)); Changed(nameof(IsHelp)); Changed(nameof(AgentDescription)); } }
     public bool IsDashboard => SelectedSection == "Dashboard";
     public bool IsSettings => SelectedSection is "Integrations & Settings" or "AI Configuration";
     public bool IsAgent => SelectedSection == "Confluence Agent";
     public bool IsJiraAgent => SelectedSection == "Jira Agent";
+    public bool IsJiraCreate => SelectedSection == "Create Jira";
+    public bool IsJiraActions => SelectedSection == "Jira Actions";
     public bool IsHistory => SelectedSection == "Agent History";
     public bool IsLogs => SelectedSection == "Activity Logs";
     public string AgentDescription => SelectedSection == "Jira Agent"
-        ? "Your future Jira workspace for searching issues and reviewing changes before execution."
-        : "Your future Confluence workspace for finding, improving and publishing pages with your approval.";
+        ? "Search Jira issues and inspect returned details without changing Jira. Use Create Jira or Jira Actions for explicitly approved writes."
+        : "Search and analyze Confluence pages, then review and explicitly approve page changes.";
     public string Notification { get => notification; private set => Set(ref notification, value); }
     public bool Busy { get => busy; private set { Set(ref busy, value); Changed(nameof(CanEdit)); Changed(nameof(AnyBusy)); } }
-    public bool AnyBusy => Busy || JiraAgent?.Busy == true;
+    public bool AnyBusy => Busy || JiraAgent?.Busy == true || JiraCreate?.Busy == true || JiraActions?.Busy == true || ConfluenceAgent?.Busy == true || History?.Busy == true || Activity?.Busy == true;
     public bool CanEdit => !AnyBusy;
     public string JiraState { get => jiraState; private set => Set(ref jiraState, value); }
     public string ConfluenceState { get => confluenceState; private set => Set(ref confluenceState, value); }
@@ -118,6 +150,10 @@ public sealed class ShellViewModel : ObservableObject
     {
         await settings.InitializeAsync();
         if (JiraAgent is not null) await JiraAgent.InitializeAsync();
+        if (JiraCreate is not null) await JiraCreate.InitializeAsync();
+        if (ConfluenceAgent is not null) await ConfluenceAgent.InitializeAsync();
+        if (History is not null) await History.InitializeAsync();
+        if (Activity is not null) await Activity.InitializeAsync();
         theme = await settings.GetThemeAsync();
         ThemeChanged?.Invoke(theme);
         await LoadIntegrationAsync(IntegrationKind.Jira);
