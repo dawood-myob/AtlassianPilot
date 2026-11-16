@@ -7,4 +7,5 @@
     <SolidColorBrush x:Key="BorderBrush" Color="#D5DDED"/>
     <SolidColorBrush x:Key="AccentBrush" Color="#4F46E5"/>
     <SolidColorBrush x:Key="CyanBrush" Color="#087C95"/>
+    <SolidColorBrush x:Key="SubtleBrush" Color="#E8EBFF"/>
 </ResourceDictionary>

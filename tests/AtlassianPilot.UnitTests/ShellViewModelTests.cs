@@ -87,6 +87,48 @@ public sealed class ShellViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SidebarGroupsKeepTheirTabsHighlightedAndTitleTheScreen()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.InitializeAsync();
+        Assert.Equal("Home", viewModel.PageTitle);
+
+        viewModel.NavigateCommand.Execute("Create Jira");
+        Assert.True(viewModel.IsJiraGroup);
+        Assert.True(viewModel.IsJiraCreate);
+        Assert.False(viewModel.IsHistoryGroup);
+        Assert.Equal("Jira", viewModel.PageTitle);
+
+        viewModel.NavigateCommand.Execute("Activity Logs");
+        Assert.True(viewModel.IsHistoryGroup);
+        Assert.False(viewModel.IsJiraGroup);
+        Assert.Equal("History", viewModel.PageTitle);
+
+        viewModel.NavigateCommand.Execute("Confluence Agent");
+        Assert.Equal("Confluence", viewModel.PageTitle);
+    }
+
+    [Fact]
+    public async Task SettingsTabsSeparateAccountsFromAiModel()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.InitializeAsync();
+        viewModel.NavigateCommand.Execute("AI Configuration");
+        await Task.Delay(100);
+        Assert.True(viewModel.IsSettings);
+        Assert.True(viewModel.IsAiConfig);
+        Assert.False(viewModel.IsAccounts);
+        Assert.True(viewModel.IsCopilot);
+
+        viewModel.NavigateCommand.Execute("Integrations & Settings");
+        await Task.Delay(100);
+        Assert.True(viewModel.IsAccounts);
+        Assert.False(viewModel.IsAiConfig);
+        Assert.False(viewModel.IsCopilot);
+        Assert.Equal("Settings", viewModel.PageTitle);
+    }
+
+    [Fact]
     public async Task CredentialInputAloneIsAnUnsavedChange()
     {
         var viewModel = CreateViewModel();

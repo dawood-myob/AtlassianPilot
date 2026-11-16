@@ -1,65 +1,73 @@
 <UserControl x:Class="AtlassianPilot.Desktop.Views.JiraCreateView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <StackPanel>
-        <Border Style="{StaticResource Card}"><StackPanel>
-            <TextBlock Text="Create Jira with Copilot" FontSize="28" FontWeight="SemiBold"/>
-            <TextBlock Text="Paste rough notes, review a polished story, then approve creation. Copilot cannot create issues itself. Your notes and current draft are sent to Copilot online; reference field values stay local. Drafts are temporary and are not saved after closing." Style="{StaticResource Muted}" Margin="0,10,0,16"/>
-            <WrapPanel><Button Content="New draft" Command="{Binding NewDraftCommand}" IsEnabled="{Binding CanEdit}"/><Button Content="Cancel processing" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"/></WrapPanel>
-            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite"/>
-            <ItemsControl ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate>
-                <Border Style="{StaticResource Card}" Padding="12" Margin="0,8,0,0"><StackPanel>
-                    <TextBlock Text="{Binding Speaker}" FontWeight="SemiBold" Foreground="{DynamicResource CyanBrush}"/>
-                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                </StackPanel></Border>
-            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-            <TextBlock Text="1. Rough content or revision instructions" FontSize="18" FontWeight="SemiBold" Margin="0,16,0,8"/>
-            <TextBlock Text="No special prompt is needed. Paste your notes and click Refine story. You can then ask for changes, such as 'Make the acceptance criteria more specific'." Style="{StaticResource Muted}"/>
-            <TextBox Text="{Binding Instructions, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" MaxHeight="320" VerticalScrollBarVisibility="Auto" MaxLength="16000" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Rough Jira content"/>
-            <Button Content="Refine story with Copilot" Style="{StaticResource Primary}" Command="{Binding RefineCommand}" IsEnabled="{Binding CanEdit}" HorizontalAlignment="Left"/>
-            <TextBlock Text="2. Review and edit the proposed content" FontSize="18" FontWeight="SemiBold" Margin="0,20,0,8"/>
-            <TextBlock Text="Summary"/><TextBox Text="{Binding Summary, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Proposed Jira summary"/>
-            <TextBlock Text="Story description and acceptance criteria"/>
-            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="240" MaxHeight="500" VerticalScrollBarVisibility="Auto" MaxLength="32000" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Proposed Jira description"/>
-        </StackPanel></Border>
-        <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
-            <TextBlock Text="3. Choose the Jira project and fields" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="Project key" Margin="0,12,0,0"/>
-            <DockPanel><Button DockPanel.Dock="Right" Content="Load issue types" Command="{Binding LoadTypesCommand}" Margin="12,0,0,12"/><TextBox Text="{Binding ProjectKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Creation project key"/></DockPanel>
-            <TextBlock Text="Issue type (only types Jira allows in this project)"/>
-            <ComboBox ItemsSource="{Binding IssueTypes}" SelectedItem="{Binding SelectedType}" AutomationProperties.Name="Creation issue type">
-                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" Foreground="#16213B"/></DataTemplate></ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Text="Optional reference issue key (for example WOR-742)" Margin="0,12,0,0"/>
-            <TextBox Text="{Binding ReferenceKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Reference Jira key"/>
-            <TextBlock Text="Reference defaults are loaded only when you request them. The reference must have the same project and issue type. Nothing is copied until you review and approve." Style="{StaticResource Muted}"/>
-            <Button Content="Load fields / reference defaults" Command="{Binding LoadFieldsCommand}" HorizontalAlignment="Left" Margin="0,12,0,8"/>
-            <TextBlock Text="{Binding ReferenceNotice}" Style="{StaticResource Muted}"/>
-            <TextBlock Text="Parent or epic key (optional unless required by Jira)" Margin="0,12,0,0"/>
-            <TextBox Text="{Binding ParentKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Creation parent key"/>
-            <ItemsControl ItemsSource="{Binding Fields}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,8,0,4">
-                <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,4"/>
-                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" Visibility="{Binding IsChoice, Converter={StaticResource VisibleWhenTrue}}" AutomationProperties.Name="{Binding Label}">
-                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" Foreground="#16213B"/></DataTemplate></ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsText, Converter={StaticResource VisibleWhenTrue}}" AutomationProperties.Name="{Binding Label}"/>
-            </StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-            <ItemsControl ItemsSource="{Binding FieldNotices}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource Muted}" Margin="0,6,0,0"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-            <Button Content="Prepare approval preview" Command="{Binding PrepareCommand}" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,16,0,0"/>
-        </StackPanel></Border>
-        <Border Style="{StaticResource Card}" Visibility="{Binding HasPreview, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
-            <TextBlock Text="4. Approve the exact Jira request" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="{Binding Preview.SiteUrl, StringFormat='Destination: {0}'}" Margin="0,10,0,8"/>
-            <TextBlock Text="Review all fields, including reference defaults. The description below is in Jira's document format. Blank optional fields are omitted and may receive Jira defaults. Any edits invalidate this approval. Nothing has been created yet." Style="{StaticResource Muted}"/>
-            <TextBox Text="{Binding Preview.FieldsJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="400" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Exact Jira creation payload"/>
-            <Button Content="Approve and create Jira" Style="{StaticResource Primary}" Command="{Binding ApproveCommand}" IsEnabled="{Binding CanApprove}" HorizontalAlignment="Left"/>
-        </StackPanel></Border>
-        <Border Style="{StaticResource Card}"><StackPanel>
-            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,10" Visibility="{Binding Busy, Converter={StaticResource VisibleWhenTrue}}"/>
-            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-            <TextBlock Text="{Binding AttemptNotice}" Style="{StaticResource Muted}" Margin="0,10,0,0"/>
-            <Button Content="{Binding CreatedIssue.Key}" Tag="{Binding CreatedIssue.Url}" Click="OpenCreatedIssue" Visibility="{Binding HasCreatedIssue, Converter={StaticResource VisibleWhenTrue}}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
-        </StackPanel></Border>
-    </StackPanel>
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+	<StackPanel>
+		<TextBlock Text="Create a Jira issue" Style="{StaticResource Title}"/>
+		<TextBlock Text="Paste rough notes. Copilot tidies the wording and proposes a story; you review it, then approve creation." Style="{StaticResource Muted}" Margin="0,4,0,18"/>
+		<ItemsControl ItemsSource="{Binding Messages}"><ItemsControl.ItemTemplate><DataTemplate>
+			<Border Style="{StaticResource Bubble}"><StackPanel>
+				<TextBlock Text="{Binding Speaker}" Style="{StaticResource Label}" Foreground="{DynamicResource CyanBrush}" Margin="0"/>
+				<TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+			</StackPanel></Border>
+		</DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+		<Border Style="{StaticResource Card}"><StackPanel>
+			<TextBlock Text="1. Your rough notes" Style="{StaticResource Section}"/>
+			<TextBox Text="{Binding Instructions, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="140" MaxHeight="320" VerticalScrollBarVisibility="Auto" MaxLength="16000" IsEnabled="{Binding CanEdit}" Margin="0,0,0,10" AutomationProperties.Name="Rough Jira content"/>
+			<WrapPanel>
+				<Button Content="Refine with Copilot" Style="{StaticResource Primary}" Command="{Binding RefineCommand}" IsEnabled="{Binding CanEdit}"/>
+				<Button Content="Start over" Style="{StaticResource Quiet}" Command="{Binding NewDraftCommand}" IsEnabled="{Binding CanEdit}"/>
+				<Button Content="Cancel" Style="{StaticResource Quiet}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"/>
+			</WrapPanel>
+			<ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8" Visibility="{Binding Busy, Converter={StaticResource VisibleWhenTrue}}"/>
+			<TextBlock Text="{Binding Status}" Style="{StaticResource Hint}" AutomationProperties.LiveSetting="Polite"/>
+			<TextBlock Text="After refining, you can ask for changes, for example &quot;Make the acceptance criteria more specific&quot;." Style="{StaticResource Hint}" Margin="0,6,0,0"/>
+		</StackPanel></Border>
+		<Border Style="{StaticResource Card}"><StackPanel>
+			<TextBlock Text="2. Review and edit the story" Style="{StaticResource Section}"/>
+			<TextBlock Text="Summary" Style="{StaticResource Label}"/><TextBox Text="{Binding Summary, UpdateSourceTrigger=PropertyChanged}" MaxLength="255" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Proposed Jira summary"/>
+			<TextBlock Text="Description and acceptance criteria" Style="{StaticResource Label}"/>
+			<TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="200" MaxHeight="500" VerticalScrollBarVisibility="Auto" MaxLength="32000" IsEnabled="{Binding CanEdit}" Margin="0,4,0,0" AutomationProperties.Name="Proposed Jira description"/>
+		</StackPanel></Border>
+		<Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanEdit}">
+			<TextBlock Text="3. Where should it go?" Style="{StaticResource Section}"/>
+			<TextBlock Text="Project key" Style="{StaticResource Label}"/>
+			<DockPanel><Button DockPanel.Dock="Right" Content="Load issue types" Command="{Binding LoadTypesCommand}" Margin="12,0,0,8" VerticalAlignment="Center"/><TextBox Text="{Binding ProjectKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Creation project key"/></DockPanel>
+			<TextBlock Text="Issue type" Style="{StaticResource Label}"/>
+			<ComboBox ItemsSource="{Binding IssueTypes}" SelectedItem="{Binding SelectedType}" AutomationProperties.Name="Creation issue type">
+				<ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" Foreground="#16213B"/></DataTemplate></ComboBox.ItemTemplate>
+			</ComboBox>
+			<TextBlock Text="Parent or epic key (optional)" Style="{StaticResource Label}"/>
+			<TextBox Text="{Binding ParentKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Creation parent key"/>
+			<Expander Header="More fields and reference issue">
+				<StackPanel>
+					<TextBlock Text="Reference issue key (for example WOR-742)" Style="{StaticResource Label}"/>
+					<TextBox Text="{Binding ReferenceKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Reference Jira key"/>
+					<TextBlock Text="A reference must share the project and issue type. Its values are only copied after you review and approve." Style="{StaticResource Hint}"/>
+					<Button Content="Load fields / reference defaults" Command="{Binding LoadFieldsCommand}" HorizontalAlignment="Left" Margin="0,10,0,8"/>
+					<TextBlock Text="{Binding ReferenceNotice}" Style="{StaticResource Hint}"/>
+					<ItemsControl ItemsSource="{Binding Fields}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,8,0,4">
+						<TextBlock Text="{Binding Label}" Style="{StaticResource Label}"/>
+						<TextBlock Text="{Binding Hint}" Style="{StaticResource Hint}"/>
+						<ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" Visibility="{Binding IsChoice, Converter={StaticResource VisibleWhenTrue}}" AutomationProperties.Name="{Binding Label}">
+							<ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" Foreground="#16213B"/></DataTemplate></ComboBox.ItemTemplate>
+						</ComboBox>
+						<TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsText, Converter={StaticResource VisibleWhenTrue}}" AutomationProperties.Name="{Binding Label}"/>
+					</StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+				</StackPanel>
+			</Expander>
+			<ItemsControl ItemsSource="{Binding FieldNotices}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource Hint}" Margin="0,4,0,0"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+			<Button Content="Preview before creating" Command="{Binding PrepareCommand}" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+		</StackPanel></Border>
+		<Border Style="{StaticResource Card}" Visibility="{Binding HasPreview, Converter={StaticResource VisibleWhenTrue}}"><StackPanel>
+			<TextBlock Text="4. Approve" Style="{StaticResource Section}"/>
+			<TextBlock Text="{Binding Preview.SiteUrl, StringFormat='Destination: {0}'}"/>
+			<TextBlock Text="Nothing has been created yet. Any edit cancels this preview. Blank optional fields are left out and may receive Jira defaults." Style="{StaticResource Hint}" Margin="0,6,0,8"/>
+			<Expander Header="Exact request" Margin="0,0,0,8"><TextBox Text="{Binding Preview.FieldsJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="400" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Exact Jira creation payload"/></Expander>
+			<Button Content="Approve and create Jira" Style="{StaticResource Primary}" Command="{Binding ApproveCommand}" IsEnabled="{Binding CanApprove}" HorizontalAlignment="Left"/>
+		</StackPanel></Border>
+		<StackPanel Margin="0,0,0,16">
+			<TextBlock Text="{Binding AttemptNotice}" Style="{StaticResource Hint}"/>
+			<Button Content="{Binding CreatedIssue.Key}" Tag="{Binding CreatedIssue.Url}" Click="OpenCreatedIssue" Visibility="{Binding HasCreatedIssue, Converter={StaticResource VisibleWhenTrue}}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+		</StackPanel>
+	</StackPanel>
 </UserControl>

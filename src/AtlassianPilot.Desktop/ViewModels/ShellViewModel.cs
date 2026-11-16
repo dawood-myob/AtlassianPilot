@@ -76,8 +76,6 @@ public sealed class ShellViewModel : ObservableObject
         UseModelCommand = new RelayCommand(value => { if (!Busy && value is CopilotModel choice) Model = choice.Id; });
     }
 
-    public ObservableCollection<string> Sections { get; } =
-        ["Dashboard", "Jira Agent", "Create Jira", "Jira Actions", "Confluence Agent", "Agent History", "Integrations & Settings", "AI Configuration", "Activity Logs"];
     public ICommand NavigateCommand { get; }
     public ICommand SaveCommand { get; }
     public ICommand DeleteCredentialCommand { get; }
@@ -113,7 +111,7 @@ public sealed class ShellViewModel : ObservableObject
     public string CopyrightNotice => "Copyright (c) 2026 Dawood Ali. All rights reserved.";
     public string UsageNotice => "Developed for personal use only. Third-party components remain subject to their respective licenses. Not affiliated with or endorsed by Atlassian or GitHub.";
     public bool IsHelp => SelectedSection == "Help & About";
-    public string SelectedSection { get => selectedSection; private set { Set(ref selectedSection, value); Changed(nameof(IsDashboard)); Changed(nameof(IsSettings)); Changed(nameof(IsAgent)); Changed(nameof(IsJiraAgent)); Changed(nameof(IsJiraCreate)); Changed(nameof(IsJiraActions)); Changed(nameof(IsHistory)); Changed(nameof(IsLogs)); Changed(nameof(IsHelp)); Changed(nameof(AgentDescription)); } }
+    public string SelectedSection { get => selectedSection; private set { Set(ref selectedSection, value); Changed(nameof(IsDashboard)); Changed(nameof(IsSettings)); Changed(nameof(IsAgent)); Changed(nameof(IsJiraAgent)); Changed(nameof(IsJiraCreate)); Changed(nameof(IsJiraActions)); Changed(nameof(IsHistory)); Changed(nameof(IsLogs)); Changed(nameof(IsHelp)); Changed(nameof(AgentDescription)); Changed(nameof(IsJiraGroup)); Changed(nameof(IsHistoryGroup)); Changed(nameof(IsAccounts)); Changed(nameof(IsAiConfig)); Changed(nameof(PageTitle)); } }
     public bool IsDashboard => SelectedSection == "Dashboard";
     public bool IsSettings => SelectedSection is "Integrations & Settings" or "AI Configuration";
     public bool IsAgent => SelectedSection == "Confluence Agent";
@@ -122,6 +120,19 @@ public sealed class ShellViewModel : ObservableObject
     public bool IsJiraActions => SelectedSection == "Jira Actions";
     public bool IsHistory => SelectedSection == "Agent History";
     public bool IsLogs => SelectedSection == "Activity Logs";
+    public bool IsJiraGroup => IsJiraAgent || IsJiraCreate || IsJiraActions;
+    public bool IsHistoryGroup => IsHistory || IsLogs;
+    public bool IsAccounts => SelectedSection == "Integrations & Settings";
+    public bool IsAiConfig => SelectedSection == "AI Configuration";
+    public string PageTitle => SelectedSection switch
+    {
+        "Jira Agent" or "Create Jira" or "Jira Actions" => "Jira",
+        "Confluence Agent" => "Confluence",
+        "Agent History" or "Activity Logs" => "History",
+        "Integrations & Settings" or "AI Configuration" => "Settings",
+        "Help & About" => "About",
+        _ => "Home"
+    };
     public string AgentDescription => SelectedSection == "Jira Agent"
         ? "Search Jira issues and inspect returned details without changing Jira. Use Create Jira or Jira Actions for explicitly approved writes."
         : "Search and analyze Confluence pages, then review and explicitly approve page changes.";
@@ -202,9 +213,12 @@ public sealed class ShellViewModel : ObservableObject
             return;
         }
         SelectedSection = section;
-        if (section == "AI Configuration")
+        var target = section == "AI Configuration" ? IntegrationKind.Copilot
+            : section == "Integrations & Settings" && SelectedIntegration == IntegrationKind.Copilot ? IntegrationKind.Jira
+            : (IntegrationKind?)null;
+        if (target is { } kind)
         {
-            try { await ChangeIntegrationAsync(IntegrationKind.Copilot); }
+            try { await ChangeIntegrationAsync(kind); }
             catch (Exception exception) { ReportError(exception); }
         }
     }

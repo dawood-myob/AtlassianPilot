@@ -160,6 +160,15 @@ public sealed class ConfluenceAgentViewModelTests
     }
 
     [Fact]
+    public async Task PageEditorStaysClosedUntilAPageIsLoaded()
+    {
+        var model = Create(new FakeAgent(), new FakeWorkspace());
+        Assert.False(model.IsEditorOpen);
+        await model.LoadPageAsync("101");
+        Assert.True(model.IsEditorOpen);
+    }
+
+    [Fact]
     public async Task ChatCanCreateAnotherPageAfterAnEarlierApprovedCreate()
     {
         var agent = new FakeAgent { Reply = new("First draft", [], null, new("ENG", "First page", "First content")) };

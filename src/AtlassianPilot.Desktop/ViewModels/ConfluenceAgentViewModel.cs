@@ -19,6 +19,7 @@ public sealed class ConfluenceAgentViewModel : ObservableObject
     private string searchQuery = "";
     private string? searchSpace;
     private string? nextStart;
+    private bool isEditorOpen;
     private string spaceKey = "";
     private string pageId = "";
     private string title = "";
@@ -84,6 +85,7 @@ public sealed class ConfluenceAgentViewModel : ObservableObject
     public bool CanSave => !Busy && Preview is not null;
     public bool CanLoadMore => !Busy && nextStart is not null;
     public bool HasPages => Pages.Count > 0;
+    public bool IsEditorOpen { get => isEditorOpen; set => Set(ref isEditorOpen, value); }
     public bool HasUnsavedDraft => Messages.Count > 0 || Prompt.Length > 0 || PageId.Length > 0 || Title.Length > 0 || Content.Length > 0;
 
     public async Task InitializeAsync()
@@ -142,6 +144,7 @@ public sealed class ConfluenceAgentViewModel : ObservableObject
                 PageId = reply.Draft.PageId ?? "";
                 Title = reply.Draft.Title;
                 Content = reply.Draft.Content;
+                IsEditorOpen = true;
                 Messages.Add(new("Draft ready", "Proposed page content is editable below. Review it carefully; nothing has been saved."));
                 Status = "Copilot proposed page content. Review the content and exact preview before approving a save.";
             }
@@ -186,6 +189,7 @@ public sealed class ConfluenceAgentViewModel : ObservableObject
             PageId = page.Id;
             Title = page.Title;
             Content = HtmlToText(page.StorageContent);
+            IsEditorOpen = true;
             Status = $"Loaded {page.Title}. Editing replaces page body with plain paragraphs; review the full preview before approving.";
             await RecordActivityAsync("Read page", "Completed");
         }
@@ -246,6 +250,7 @@ public sealed class ConfluenceAgentViewModel : ObservableObject
         PageId = "";
         Title = "";
         Content = "";
+        IsEditorOpen = true;
         SavedPage = null;
         SavedPageUrl = "";
         conversationId = null;
