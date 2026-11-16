@@ -11,10 +11,12 @@
 		<Setter Property="LineHeight" Value="20"/>
 	</Style>
 	<Style x:Key="Title" TargetType="TextBlock">
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
 		<Setter Property="FontSize" Value="24"/>
 		<Setter Property="FontWeight" Value="SemiBold"/>
 	</Style>
 	<Style x:Key="Section" TargetType="TextBlock">
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
 		<Setter Property="FontSize" Value="16"/>
 		<Setter Property="FontWeight" Value="SemiBold"/>
 		<Setter Property="Margin" Value="0,0,0,10"/>
@@ -128,6 +130,7 @@
 		<Setter Property="FontSize" Value="14"/>
 	</Style>
 	<Style TargetType="ComboBox">
+		<Setter Property="ItemTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" Foreground="#16213B" TextWrapping="NoWrap"/></DataTemplate></Setter.Value></Setter>
 		<Setter Property="Foreground" Value="#16213B"/>
 		<Setter Property="Background" Value="#FFFFFF"/>
 		<Setter Property="Padding" Value="10"/>
