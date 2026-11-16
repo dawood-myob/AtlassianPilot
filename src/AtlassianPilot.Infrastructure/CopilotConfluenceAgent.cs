@@ -93,7 +93,7 @@ public sealed class CopilotConfluenceAgent(ICopilotRuntime runtime, IConfluenceW
         if (session is not null && model == sessionModel) return;
         if (session is not null) await DisposeSessionAsync();
         if (model is not null && !(await runtime.GetModelsAsync(cancellationToken)).Any(candidate => candidate.Id == model))
-            throw new IntegrationException("The saved Copilot model is not currently available. Choose an available model in AI Configuration or leave the preference blank.");
+            throw new IntegrationException($"The saved Copilot model '{model}' is not currently available. Open Settings > AI model, select Test connection to load the model list, then choose one and save (or clear the preference to use the default).");
 
         var searchTool = CopilotTool.DefineTool((Func<string, string?, ToolInvocation, int, string?, Task<IReadOnlyList<ConfluencePageSummary>>>)SearchPagesAsync,
             new CopilotToolOptions { SkipPermission = true, Idempotent = true },

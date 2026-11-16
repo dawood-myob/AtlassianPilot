@@ -24,7 +24,7 @@ public sealed class CopilotJiraDraftAgent(ICopilotRuntime runtime, ISettingsStor
         var preferences = await settings.LoadAsync(IntegrationKind.Copilot, timeout.Token);
         var model = string.IsNullOrWhiteSpace(preferences.Model) ? null : preferences.Model;
         if (model is not null && !(await runtime.GetModelsAsync(timeout.Token)).Any(candidate => candidate.Id == model))
-            throw new IntegrationException("The saved Copilot model is unavailable. Choose an available model in AI Configuration.");
+            throw new IntegrationException($"The saved Copilot model '{model}' is not currently available. Open Settings > AI model, select Test connection to load the model list, then choose one and save (or clear the preference to use the default).");
         JiraDraftContent? proposed = null;
         string? activeSessionId = null;
         var accepting = true;

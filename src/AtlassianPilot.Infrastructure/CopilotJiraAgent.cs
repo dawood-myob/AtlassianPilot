@@ -101,7 +101,7 @@ public sealed class CopilotJiraAgent(ICopilotRuntime runtime, IJiraIssueSearchSe
         if (session is not null) await DisposeSessionAsync();
         var models = await runtime.GetModelsAsync(cancellationToken);
         if (model is not null && !models.Any(candidate => candidate.Id == model))
-            throw new IntegrationException("The saved Copilot model is not currently available. Choose an available model in AI Configuration or leave the preference blank.");
+            throw new IntegrationException($"The saved Copilot model '{model}' is not currently available. Open Settings > AI model, select Test connection to load the model list, then choose one and save (or clear the preference to use the default).");
 
         var tool = CopilotTool.DefineTool(
             (Func<string, ToolInvocation, int, string?, Task<JiraIssueSearchResult>>)SearchJiraIssuesAsync,
